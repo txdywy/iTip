@@ -1,5 +1,6 @@
 import AppKit
 
+@MainActor
 final class StatusBarController: NSObject, NSMenuDelegate {
     static let defaultTitle = "iTip"
 
@@ -14,8 +15,11 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
         self.statusItem = statusItem
         self.menuPresenter = menuPresenter
-        applyTitle = { statusItem.button?.title = $0 }
-        removeStatusItem = { statusBar.removeStatusItem(statusItem) }
+        applyTitle = { [weak statusItem] in statusItem?.button?.title = $0 }
+        removeStatusItem = { [weak statusBar, weak statusItem] in
+            guard let item = statusItem else { return }
+            statusBar?.removeStatusItem(item)
+        }
 
         super.init()
 

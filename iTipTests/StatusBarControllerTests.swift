@@ -1,8 +1,9 @@
 import XCTest
 @testable import iTip
 
+@MainActor
 final class StatusBarControllerTests: XCTestCase {
-    func testStatusBarControllerAssignsDefaultTitle() {
+    func testStatusBarControllerAssignsDefaultTitle() async {
         let titleSpy = TitleSpy()
 
         _ = StatusBarController(applyTitle: titleSpy.record)
@@ -10,7 +11,7 @@ final class StatusBarControllerTests: XCTestCase {
         XCTAssertEqual(titleSpy.recordedTitles, [StatusBarController.defaultTitle])
     }
 
-    func testStatusBarControllerRemovesStatusItemOnDeinit() {
+    func testStatusBarControllerRemovesStatusItemOnDeinit() async {
         let removalSpy = RemovalSpy()
 
         var controller: StatusBarController? = StatusBarController(
