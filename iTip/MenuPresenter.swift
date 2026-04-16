@@ -66,12 +66,10 @@ final class MenuPresenter {
             menu.addItem(noAppsItem)
         } else {
             for record in validRecords {
-                let relativeTime = MenuPresenter.relativeFormatter.localizedString(for: record.lastActivatedAt, relativeTo: Date())
-                let duration = MenuPresenter.formatDuration(record.totalActiveSeconds)
-                let title = "\(record.displayName)  ×\(record.activationCount)  \(duration)  \(relativeTime)"
-                let item = NSMenuItem(title: title, action: menuItemAction, keyEquivalent: "")
+                let item = NSMenuItem(title: "", action: menuItemAction, keyEquivalent: "")
                 item.target = menuItemTarget
                 item.representedObject = record.bundleIdentifier
+                item.attributedTitle = MenuPresenter.attributedTitle(for: record)
                 if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: record.bundleIdentifier) {
                     item.image = NSWorkspace.shared.icon(forFile: appURL.path)
                     item.image?.size = NSSize(width: 16, height: 16)
@@ -88,7 +86,62 @@ final class MenuPresenter {
         return menu
     }
 
-    // MARK: - Private
+    // MARK: - Attributed Title
+
+    private static func attributedTitle(for record: UsageRecord) -> NSAttributedString {
+        let relativeTime = relativeFormatter.localizedString(for: record.lastActivatedAt, relativeTo: Date())
+        let duration = formatDuration(record.totalActiveSeconds)
+        let countStr = "×\(record.activationCount)"
+
+        // Use tab stops for column alignment
+        let tab1: CGFloat = 160  // after app name → count column
+        let tab2: CGFloat = 220  // after count → duration column
+        let tab3: CGFloat = 290  // after duration → relative time column
+
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.tabStops = [
+            NSTextTab(textAlignment: .right, location: tab1),
+            NSTextTab(textAlignment: .right, location: tab2),
+            NSTextTab(textAlignment: .right, location: tab3),
+        ]
+
+        let nameFont = NSFont.menuFont(ofSize: 13)
+        let statsFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+        let dimColor = NSColor.secondaryLabelColor
+
+        let result = NSMutableAttributedString()
+
+        // App name
+        result.append(NSAttributedString(string: record.displayName, attributes: [
+            .font: nameFont,
+            .paragraphStyle: paragraphStyle,
+        ]))
+
+        // Tab + count
+        result.append(NSAttributedString(string: "\t\(countStr)", attributes: [
+            .font: statsFont,
+            .foregroundColor: dimColor,
+            .paragraphStyle: paragraphStyle,
+        ]))
+
+        // Tab + duration
+        result.append(NSAttributedString(string: "\t\(duration)", attributes: [
+            .font: statsFont,
+            .foregroundColor: dimColor,
+            .paragraphStyle: paragraphStyle,
+        ]))
+
+        // Tab + relative time
+        result.append(NSAttributedString(string: "\t\(relativeTime)", attributes: [
+            .font: statsFont,
+            .foregroundColor: dimColor,
+            .paragraphStyle: paragraphStyle,
+        ]))
+
+        return result
+    }
+
+    // MARK: - Duration Formatting
 
     /// Formats seconds into a human-readable duration string.
     /// e.g. 3661 → "1h 1m", 45 → "<1m", 7200 → "2h 0m"
@@ -98,7 +151,7 @@ final class MenuPresenter {
         let hours = totalSeconds / 3600
         let minutes = (totalSeconds % 3600) / 60
         if hours > 0 {
-            return "⏱\(hours)h \(minutes)m"
+            return "⏱\(hours)h\(minutes)m"
         }
         return "⏱\(minutes)m"
     }
