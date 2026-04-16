@@ -9,6 +9,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let store = UsageStore()
         let ranker = UsageRanker()
 
+        // Seed store with Spotlight data on cold start (empty store)
+        let seeder = SpotlightSeeder(store: store)
+        seeder.seedIfEmpty()
+
         activationMonitor = ActivationMonitor(store: store)
         activationMonitor?.startMonitoring()
 

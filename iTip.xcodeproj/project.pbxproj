@@ -29,6 +29,7 @@
 		A00000000000000000000024 /* AppLauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000011B /* AppLauncher.swift */; };
 		A00000000000000000000025 /* AppLauncherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000012A /* AppLauncherTests.swift */; };
 		A00000000000000000000026 /* IntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000012B /* IntegrationTests.swift */; };
+		A00000000000000000000027 /* SpotlightSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000011C /* SpotlightSeeder.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -56,6 +57,7 @@
 		A0000000000000000000011B /* AppLauncher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLauncher.swift; sourceTree = "<group>"; };
 		A0000000000000000000012A /* AppLauncherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLauncherTests.swift; sourceTree = "<group>"; };
 		A0000000000000000000012B /* IntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationTests.swift; sourceTree = "<group>"; };
+		A0000000000000000000011C /* SpotlightSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotlightSeeder.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -101,6 +103,7 @@
 				A00000000000000000000119 /* ActivationMonitor.swift */,
 				A0000000000000000000011A /* MenuPresenter.swift */,
 				A0000000000000000000011B /* AppLauncher.swift */,
+				A0000000000000000000011C /* SpotlightSeeder.swift */,
 				A00000000000000000000114 /* Info.plist */,
 			);
 		};
@@ -241,6 +244,7 @@
 				A0000000000000000000001F /* ActivationMonitor.swift in Sources */,
 				A00000000000000000000022 /* MenuPresenter.swift in Sources */,
 				A00000000000000000000024 /* AppLauncher.swift in Sources */,
+				A00000000000000000000027 /* SpotlightSeeder.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
