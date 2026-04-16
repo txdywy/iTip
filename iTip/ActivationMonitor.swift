@@ -9,6 +9,10 @@ final class ActivationMonitor {
 
     private var observer: NSObjectProtocol?
 
+    /// Tracks the currently active (foreground) app for duration calculation.
+    private var currentForegroundBundleID: String?
+    private var foregroundSince: Date?
+
     /// Indicates whether activation monitoring is currently active.
     private(set) var isMonitoring: Bool = false
 
@@ -49,13 +53,36 @@ final class ActivationMonitor {
             var records = try store.load()
             let now = dateProvider()
 
+            // Accumulate foreground duration for the previously active app
+            if let prevID = currentForegroundBundleID,
+               let since = foregroundSince,
+               prevID != selfBundleIdentifier {
+                let duration = now.timeIntervalSince(since)
+                if duration > 0,
+                   let idx = records.firstIndex(where: { $0.bundleIdentifier == prevID }) {
+                    let prev = records[idx]
+                    records[idx] = UsageRecord(
+                        bundleIdentifier: prev.bundleIdentifier,
+                        displayName: prev.displayName,
+                        lastActivatedAt: prev.lastActivatedAt,
+                        activationCount: prev.activationCount,
+                        totalActiveSeconds: prev.totalActiveSeconds + duration
+                    )
+                }
+            }
+
+            // Update foreground tracking to the new app
+            currentForegroundBundleID = bundleIdentifier
+            foregroundSince = now
+
             if let index = records.firstIndex(where: { $0.bundleIdentifier == bundleIdentifier }) {
                 let existing = records[index]
                 let updated = UsageRecord(
                     bundleIdentifier: existing.bundleIdentifier,
                     displayName: displayName,
                     lastActivatedAt: now,
-                    activationCount: existing.activationCount + 1
+                    activationCount: existing.activationCount + 1,
+                    totalActiveSeconds: existing.totalActiveSeconds
                 )
                 records[index] = updated
             } else {

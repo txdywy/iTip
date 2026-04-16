@@ -67,7 +67,8 @@ final class MenuPresenter {
         } else {
             for record in validRecords {
                 let relativeTime = MenuPresenter.relativeFormatter.localizedString(for: record.lastActivatedAt, relativeTo: Date())
-                let title = "\(record.displayName)  ×\(record.activationCount)  \(relativeTime)"
+                let duration = MenuPresenter.formatDuration(record.totalActiveSeconds)
+                let title = "\(record.displayName)  ×\(record.activationCount)  \(duration)  \(relativeTime)"
                 let item = NSMenuItem(title: title, action: menuItemAction, keyEquivalent: "")
                 item.target = menuItemTarget
                 item.representedObject = record.bundleIdentifier
@@ -85,5 +86,20 @@ final class MenuPresenter {
         menu.addItem(quitItem)
 
         return menu
+    }
+
+    // MARK: - Private
+
+    /// Formats seconds into a human-readable duration string.
+    /// e.g. 3661 → "1h 1m", 45 → "<1m", 7200 → "2h 0m"
+    static func formatDuration(_ seconds: TimeInterval) -> String {
+        let totalSeconds = Int(seconds)
+        if totalSeconds < 60 { return "⏱<1m" }
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        if hours > 0 {
+            return "⏱\(hours)h \(minutes)m"
+        }
+        return "⏱\(minutes)m"
     }
 }
