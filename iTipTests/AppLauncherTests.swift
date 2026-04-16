@@ -9,18 +9,24 @@ final class AppLauncherTests: XCTestCase {
         launcher = AppLauncher()
     }
 
-    func testActivateReturnsApplicationNotFoundForUnknownBundleIdentifier() {
-        let result = launcher.activate(bundleIdentifier: "com.nonexistent.app.that.does.not.exist.12345")
+    func testActivateCallsBackWithApplicationNotFoundForUnknownBundleIdentifier() {
+        let expectation = expectation(description: "completion called")
+        let unknownID = "com.nonexistent.app.that.does.not.exist.12345"
 
-        switch result {
-        case .failure(let error):
-            if case .applicationNotFound(let bundleId) = error {
-                XCTAssertEqual(bundleId, "com.nonexistent.app.that.does.not.exist.12345")
-            } else {
-                XCTFail("Expected applicationNotFound error, got \(error)")
+        launcher.activate(bundleIdentifier: unknownID) { result in
+            switch result {
+            case .failure(let error):
+                if case .applicationNotFound(let bundleId) = error {
+                    XCTAssertEqual(bundleId, unknownID)
+                } else {
+                    XCTFail("Expected applicationNotFound error, got \(error)")
+                }
+            case .success:
+                XCTFail("Expected failure for unknown bundle identifier, got success")
             }
-        case .success:
-            XCTFail("Expected failure for unknown bundle identifier, got success")
+            expectation.fulfill()
         }
+
+        waitForExpectations(timeout: 5)
     }
 }

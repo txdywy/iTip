@@ -35,12 +35,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func launchApp(_ sender: NSMenuItem) {
         guard let bundleIdentifier = sender.representedObject as? String else { return }
 
-        let result = appLauncher.activate(bundleIdentifier: bundleIdentifier)
-        switch result {
-        case .success:
-            break
-        case .failure(let error):
-            showErrorAlert(for: error)
+        appLauncher.activate(bundleIdentifier: bundleIdentifier) { [weak self] result in
+            switch result {
+            case .success:
+                break
+            case .failure(let error):
+                self?.showErrorAlert(for: error)
+            }
         }
     }
 

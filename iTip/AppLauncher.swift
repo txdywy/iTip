@@ -6,36 +6,34 @@ enum AppLaunchError: Error {
 }
 
 struct AppLauncher {
-    func activate(bundleIdentifier: String) -> Result<Void, AppLaunchError> {
+    /// Activates or launches the app with the given bundle identifier.
+    /// Completion is always called on the main thread.
+    func activate(bundleIdentifier: String, completion: @escaping (Result<Void, AppLaunchError>) -> Void) {
         // If the app is already running, activate it directly
         let runningApps = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
         if let runningApp = runningApps.first {
             runningApp.activate()
-            return .success(())
+            completion(.success(()))
+            return
         }
 
         // App is not running — try to find and launch it
         guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) else {
-            return .failure(.applicationNotFound(bundleIdentifier: bundleIdentifier))
+            completion(.failure(.applicationNotFound(bundleIdentifier: bundleIdentifier)))
+            return
         }
 
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
 
-        let semaphore = DispatchSemaphore(value: 0)
-        var launchError: Error?
-
         NSWorkspace.shared.openApplication(at: appURL, configuration: configuration) { _, error in
-            launchError = error
-            semaphore.signal()
+            DispatchQueue.main.async {
+                if let error = error {
+                    completion(.failure(.launchFailed(bundleIdentifier: bundleIdentifier, underlyingError: error)))
+                } else {
+                    completion(.success(()))
+                }
+            }
         }
-
-        semaphore.wait()
-
-        if let error = launchError {
-            return .failure(.launchFailed(bundleIdentifier: bundleIdentifier, underlyingError: error))
-        }
-
-        return .success(())
     }
 }
