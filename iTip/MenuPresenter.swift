@@ -3,6 +3,11 @@ import AppKit
 final class MenuPresenter {
     private let store: UsageStoreProtocol
     private let ranker: UsageRanker
+    private static let relativeFormatter: RelativeDateTimeFormatter = {
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .abbreviated
+        return f
+    }()
 
     /// Target for app menu item click actions (typically the AppDelegate).
     weak var menuItemTarget: AnyObject?
@@ -61,7 +66,9 @@ final class MenuPresenter {
             menu.addItem(noAppsItem)
         } else {
             for record in validRecords {
-                let item = NSMenuItem(title: record.displayName, action: menuItemAction, keyEquivalent: "")
+                let relativeTime = MenuPresenter.relativeFormatter.localizedString(for: record.lastActivatedAt, relativeTo: Date())
+                let title = "\(record.displayName)  ×\(record.activationCount)  \(relativeTime)"
+                let item = NSMenuItem(title: title, action: menuItemAction, keyEquivalent: "")
                 item.target = menuItemTarget
                 item.representedObject = record.bundleIdentifier
                 if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: record.bundleIdentifier) {
