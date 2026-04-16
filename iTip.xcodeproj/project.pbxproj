@@ -11,6 +11,24 @@
 		A00000000000000000000012 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000112 /* AppDelegate.swift */; };
 		A00000000000000000000013 /* StatusBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000113 /* StatusBarController.swift */; };
 		A00000000000000000000014 /* StatusBarControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000121 /* StatusBarControllerTests.swift */; };
+		A00000000000000000000015 /* UsageRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000115 /* UsageRecord.swift */; };
+		A00000000000000000000016 /* UsageStoreProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000116 /* UsageStoreProtocol.swift */; };
+		A00000000000000000000017 /* UsageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000117 /* UsageStore.swift */; };
+		A00000000000000000000018 /* InMemoryUsageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000122 /* InMemoryUsageStore.swift */; };
+		A00000000000000000000019 /* UsageStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000123 /* UsageStoreTests.swift */; };
+		A0000000000000000000001A /* UsageRecordPropertyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000124 /* UsageRecordPropertyTests.swift */; };
+		A0000000000000000000001B /* SwiftCheck in Frameworks */ = {isa = PBXBuildFile; productRef = A00000000000000000000901 /* SwiftCheck */; };
+		A0000000000000000000001C /* UsageRanker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000118 /* UsageRanker.swift */; };
+		A0000000000000000000001D /* UsageRankerPropertyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000125 /* UsageRankerPropertyTests.swift */; };
+		A0000000000000000000001E /* UsageRankerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000126 /* UsageRankerTests.swift */; };
+		A0000000000000000000001F /* ActivationMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000119 /* ActivationMonitor.swift */; };
+		A00000000000000000000020 /* ActivationMonitorPropertyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000127 /* ActivationMonitorPropertyTests.swift */; };
+		A00000000000000000000021 /* ActivationMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000128 /* ActivationMonitorTests.swift */; };
+		A00000000000000000000022 /* MenuPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000011A /* MenuPresenter.swift */; };
+		A00000000000000000000023 /* MenuPresenterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000129 /* MenuPresenterTests.swift */; };
+		A00000000000000000000024 /* AppLauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000011B /* AppLauncher.swift */; };
+		A00000000000000000000025 /* AppLauncherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000012A /* AppLauncherTests.swift */; };
+		A00000000000000000000026 /* IntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000012B /* IntegrationTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -21,6 +39,23 @@
 		A00000000000000000000113 /* StatusBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBarController.swift; sourceTree = "<group>"; };
 		A00000000000000000000114 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A00000000000000000000121 /* StatusBarControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBarControllerTests.swift; sourceTree = "<group>"; };
+		A00000000000000000000122 /* InMemoryUsageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InMemoryUsageStore.swift; sourceTree = "<group>"; };
+		A00000000000000000000123 /* UsageStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageStoreTests.swift; sourceTree = "<group>"; };
+		A00000000000000000000115 /* UsageRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageRecord.swift; sourceTree = "<group>"; };
+		A00000000000000000000116 /* UsageStoreProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageStoreProtocol.swift; sourceTree = "<group>"; };
+		A00000000000000000000117 /* UsageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageStore.swift; sourceTree = "<group>"; };
+		A00000000000000000000124 /* UsageRecordPropertyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageRecordPropertyTests.swift; sourceTree = "<group>"; };
+		A00000000000000000000118 /* UsageRanker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageRanker.swift; sourceTree = "<group>"; };
+		A00000000000000000000125 /* UsageRankerPropertyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageRankerPropertyTests.swift; sourceTree = "<group>"; };
+		A00000000000000000000126 /* UsageRankerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageRankerTests.swift; sourceTree = "<group>"; };
+		A00000000000000000000119 /* ActivationMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivationMonitor.swift; sourceTree = "<group>"; };
+		A00000000000000000000127 /* ActivationMonitorPropertyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivationMonitorPropertyTests.swift; sourceTree = "<group>"; };
+		A00000000000000000000128 /* ActivationMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivationMonitorTests.swift; sourceTree = "<group>"; };
+		A0000000000000000000011A /* MenuPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuPresenter.swift; sourceTree = "<group>"; };
+		A00000000000000000000129 /* MenuPresenterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuPresenterTests.swift; sourceTree = "<group>"; };
+		A0000000000000000000011B /* AppLauncher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLauncher.swift; sourceTree = "<group>"; };
+		A0000000000000000000012A /* AppLauncherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLauncherTests.swift; sourceTree = "<group>"; };
+		A0000000000000000000012B /* IntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -35,6 +70,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A0000000000000000000001B /* SwiftCheck in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -58,6 +94,13 @@
 				A00000000000000000000111 /* main.swift */,
 				A00000000000000000000112 /* AppDelegate.swift */,
 				A00000000000000000000113 /* StatusBarController.swift */,
+				A00000000000000000000115 /* UsageRecord.swift */,
+				A00000000000000000000116 /* UsageStoreProtocol.swift */,
+				A00000000000000000000117 /* UsageStore.swift */,
+				A00000000000000000000118 /* UsageRanker.swift */,
+				A00000000000000000000119 /* ActivationMonitor.swift */,
+				A0000000000000000000011A /* MenuPresenter.swift */,
+				A0000000000000000000011B /* AppLauncher.swift */,
 				A00000000000000000000114 /* Info.plist */,
 			);
 		};
@@ -67,6 +110,16 @@
 			sourceTree = "<group>";
 			children = (
 				A00000000000000000000121 /* StatusBarControllerTests.swift */,
+				A00000000000000000000122 /* InMemoryUsageStore.swift */,
+				A00000000000000000000123 /* UsageStoreTests.swift */,
+				A00000000000000000000124 /* UsageRecordPropertyTests.swift */,
+				A00000000000000000000125 /* UsageRankerPropertyTests.swift */,
+				A00000000000000000000126 /* UsageRankerTests.swift */,
+				A00000000000000000000127 /* ActivationMonitorPropertyTests.swift */,
+				A00000000000000000000128 /* ActivationMonitorTests.swift */,
+				A00000000000000000000129 /* MenuPresenterTests.swift */,
+				A0000000000000000000012A /* AppLauncherTests.swift */,
+				A0000000000000000000012B /* IntegrationTests.swift */,
 			);
 		};
 		A00000000000000000000303 /* Products */ = {
@@ -112,6 +165,9 @@
 				A00000000000000000000601 /* PBXTargetDependency */,
 			);
 			name = iTipTests;
+			packageProductDependencies = (
+				A00000000000000000000901 /* SwiftCheck */,
+			);
 			productName = iTipTests;
 			productReference = A00000000000000000000102 /* iTipTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -140,6 +196,9 @@
 				Base,
 			);
 			mainGroup = A00000000000000000000300;
+			packageReferences = (
+				A00000000000000000000900 /* XCRemoteSwiftPackageReference "SwiftCheck" */,
+			);
 			productRefGroup = A00000000000000000000303 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -175,6 +234,13 @@
 				A00000000000000000000011 /* main.swift in Sources */,
 				A00000000000000000000012 /* AppDelegate.swift in Sources */,
 				A00000000000000000000013 /* StatusBarController.swift in Sources */,
+				A00000000000000000000015 /* UsageRecord.swift in Sources */,
+				A00000000000000000000016 /* UsageStoreProtocol.swift in Sources */,
+				A00000000000000000000017 /* UsageStore.swift in Sources */,
+				A0000000000000000000001C /* UsageRanker.swift in Sources */,
+				A0000000000000000000001F /* ActivationMonitor.swift in Sources */,
+				A00000000000000000000022 /* MenuPresenter.swift in Sources */,
+				A00000000000000000000024 /* AppLauncher.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -183,6 +249,16 @@
 			buildActionMask = 2147483647;
 			files = (
 				A00000000000000000000014 /* StatusBarControllerTests.swift in Sources */,
+				A00000000000000000000018 /* InMemoryUsageStore.swift in Sources */,
+				A00000000000000000000019 /* UsageStoreTests.swift in Sources */,
+				A0000000000000000000001A /* UsageRecordPropertyTests.swift in Sources */,
+				A0000000000000000000001D /* UsageRankerPropertyTests.swift in Sources */,
+				A0000000000000000000001E /* UsageRankerTests.swift in Sources */,
+				A00000000000000000000020 /* ActivationMonitorPropertyTests.swift in Sources */,
+				A00000000000000000000021 /* ActivationMonitorTests.swift in Sources */,
+				A00000000000000000000023 /* MenuPresenterTests.swift in Sources */,
+				A00000000000000000000025 /* AppLauncherTests.swift in Sources */,
+				A00000000000000000000026 /* IntegrationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -252,6 +328,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -408,6 +485,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A00000000000000000000900 /* XCRemoteSwiftPackageReference "SwiftCheck" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/typelift/SwiftCheck.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.12.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A00000000000000000000901 /* SwiftCheck */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A00000000000000000000900 /* XCRemoteSwiftPackageReference "SwiftCheck" */;
+			productName = SwiftCheck;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A00000000000000000000400 /* Project object */;
 }
