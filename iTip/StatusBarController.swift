@@ -52,22 +52,16 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     // MARK: - NSMenuDelegate
 
-    private var lastMenuBuild: Date?
-    private let menuBuildThrottle: TimeInterval = 0.3
-
     func menuNeedsUpdate(_ menu: NSMenu) {
         guard let menuPresenter = menuPresenter else { return }
-        // Throttle: skip rebuild if menu was recently refreshed
-        if let last = lastMenuBuild, Date().timeIntervalSince(last) < menuBuildThrottle {
-            return
-        }
+        // Build fresh menu and swap items in
         let freshMenu = menuPresenter.buildMenu()
         menu.removeAllItems()
-        for item in freshMenu.items {
-            freshMenu.removeItem(item)
+        // Move items from fresh menu to existing menu
+        while freshMenu.items.count > 0 {
+            let item = freshMenu.items[0]
+            freshMenu.removeItem(at: 0)
             menu.addItem(item)
         }
-        menu.delegate = self
-        lastMenuBuild = Date()
     }
 }
