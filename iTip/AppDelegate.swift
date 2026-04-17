@@ -9,10 +9,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let store = UsageStore()
         let ranker = UsageRanker()
 
-        // Seed store with Spotlight data on cold start (empty store)
-        let seeder = SpotlightSeeder(store: store)
-        seeder.seedIfEmpty()
-
         activationMonitor = ActivationMonitor(store: store)
         activationMonitor?.startMonitoring()
 
@@ -24,6 +20,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         statusBarController = StatusBarController(menuPresenter: menuPresenter)
+
+        // Seed store with Spotlight data on cold start (empty store)
+        // Done async after UI is ready to avoid blocking app launch
+        DispatchQueue.global(qos: .utility).async {
+            let seeder = SpotlightSeeder(store: store)
+            seeder.seedIfEmpty()
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {

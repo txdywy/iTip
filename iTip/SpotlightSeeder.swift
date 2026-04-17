@@ -30,13 +30,14 @@ struct SpotlightSeeder {
     // MARK: - Private
 
     private func querySpotlightForRecentApps() -> [UsageRecord] {
-        // Use MDQuery (Core Foundation level) for synchronous Spotlight search.
         let queryString = "kMDItemContentType == 'com.apple.application-bundle' && kMDItemLastUsedDate >= $time.today(-30)" as CFString
         guard let query = MDQueryCreate(kCFAllocatorDefault, queryString, nil, nil) else {
             return []
         }
 
-        // Execute synchronously
+        // Set a batch size limit to avoid long queries
+        MDQuerySetMaxCount(query, 50)
+
         guard MDQueryExecute(query, CFOptionFlags(kMDQuerySynchronous.rawValue)) else {
             return []
         }
