@@ -6,6 +6,7 @@ final class ActivationMonitor {
     private let notificationCenter: NotificationCenter
     private let dateProvider: () -> Date
     private let selfBundleIdentifier: String
+    private let networkMonitor: NetworkMonitor?
 
     private var observer: NSObjectProtocol?
 
@@ -19,11 +20,13 @@ final class ActivationMonitor {
     init(store: UsageStoreProtocol,
          notificationCenter: NotificationCenter = NSWorkspace.shared.notificationCenter,
          dateProvider: @escaping () -> Date = Date.init,
-         selfBundleIdentifier: String = Bundle.main.bundleIdentifier ?? "") {
+         selfBundleIdentifier: String = Bundle.main.bundleIdentifier ?? "",
+         networkMonitor: NetworkMonitor? = nil) {
         self.store = store
         self.notificationCenter = notificationCenter
         self.dateProvider = dateProvider
         self.selfBundleIdentifier = selfBundleIdentifier
+        self.networkMonitor = networkMonitor
     }
 
     func startMonitoring() {
@@ -53,6 +56,24 @@ final class ActivationMonitor {
             var records = try store.load()
             let now = dateProvider()
 
+            // Read latest accumulated network traffic (non-blocking, background-updated)
+            let allTraffic = networkMonitor?.allAccumulatedBytes() ?? [:]
+
+            // Update network bytes for every known record
+            for i in records.indices {
+                if let bytes = allTraffic[records[i].bundleIdentifier] {
+                    let existing = records[i]
+                    records[i] = UsageRecord(
+                        bundleIdentifier: existing.bundleIdentifier,
+                        displayName: existing.displayName,
+                        lastActivatedAt: existing.lastActivatedAt,
+                        activationCount: existing.activationCount,
+                        totalActiveSeconds: existing.totalActiveSeconds,
+                        totalBytes: bytes
+                    )
+                }
+            }
+
             // Accumulate foreground duration for the previously active app
             if let prevID = currentForegroundBundleID,
                let since = foregroundSince,
@@ -66,7 +87,8 @@ final class ActivationMonitor {
                         displayName: prev.displayName,
                         lastActivatedAt: prev.lastActivatedAt,
                         activationCount: prev.activationCount,
-                        totalActiveSeconds: prev.totalActiveSeconds + duration
+                        totalActiveSeconds: prev.totalActiveSeconds + duration,
+                        totalBytes: prev.totalBytes
                     )
                 }
             }
@@ -82,7 +104,8 @@ final class ActivationMonitor {
                     displayName: displayName,
                     lastActivatedAt: now,
                     activationCount: existing.activationCount + 1,
-                    totalActiveSeconds: existing.totalActiveSeconds
+                    totalActiveSeconds: existing.totalActiveSeconds,
+                    totalBytes: allTraffic[bundleIdentifier] ?? existing.totalBytes
                 )
                 records[index] = updated
             } else {
@@ -90,7 +113,8 @@ final class ActivationMonitor {
                     bundleIdentifier: bundleIdentifier,
                     displayName: displayName,
                     lastActivatedAt: now,
-                    activationCount: 1
+                    activationCount: 1,
+                    totalBytes: allTraffic[bundleIdentifier] ?? 0
                 )
                 records.append(newRecord)
             }

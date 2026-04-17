@@ -57,6 +57,7 @@ final class ActivationMonitorTests: XCTestCase {
         XCTAssertEqual(records[0].displayName, "Finder")
         XCTAssertEqual(records[0].activationCount, 1)
         XCTAssertEqual(records[0].lastActivatedAt, fixedDate)
+        XCTAssertEqual(records[0].totalBytes, 0)
     }
 
     // MARK: - Requirement 2.3: Existing app increments count by 1

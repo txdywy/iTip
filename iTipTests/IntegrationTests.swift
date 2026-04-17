@@ -44,9 +44,9 @@ final class IntegrationTests: XCTestCase {
         XCTAssertEqual(menu.items[3].title, "Quit iTip")
 
         // Verify the app entries are present
-        let titles = menu.items.prefix(2).map { $0.title }
-        XCTAssertTrue(titles.contains("Safari"))
-        XCTAssertTrue(titles.contains("Finder"))
+        let bundleIDs = menu.items.prefix(2).compactMap { $0.representedObject as? String }
+        XCTAssertTrue(bundleIDs.contains("com.apple.Safari"))
+        XCTAssertTrue(bundleIDs.contains("com.apple.Finder"))
     }
 
     func testFullDataFlowWithExistingRecordUpdate() {
@@ -80,8 +80,8 @@ final class IntegrationTests: XCTestCase {
         let presenter = MenuPresenter(store: store, ranker: ranker)
         let menu = presenter.buildMenu()
 
-        XCTAssertEqual(menu.items[0].title, "Finder")
-        XCTAssertEqual(menu.items[1].title, "Safari")
+        XCTAssertEqual(menu.items[0].representedObject as? String, "com.apple.Finder")
+        XCTAssertEqual(menu.items[1].representedObject as? String, "com.apple.Safari")
     }
 
     // MARK: - 10.2 Activation → store update → menu refresh
@@ -107,8 +107,8 @@ final class IntegrationTests: XCTestCase {
 
         // Build menu — Finder should be first (most recent)
         let menu1 = presenter.buildMenu()
-        XCTAssertEqual(menu1.items[0].title, "Finder")
-        XCTAssertEqual(menu1.items[1].title, "Safari")
+        XCTAssertEqual(menu1.items[0].representedObject as? String, "com.apple.Finder")
+        XCTAssertEqual(menu1.items[1].representedObject as? String, "com.apple.Safari")
 
         // Now activate Safari again (Req 2.3 — update existing record)
         currentDate = currentDate.addingTimeInterval(60)
@@ -122,7 +122,7 @@ final class IntegrationTests: XCTestCase {
 
         // Rebuild menu — Safari should now be first (Req 5.4 — fresh data on each open)
         let menu2 = presenter.buildMenu()
-        XCTAssertEqual(menu2.items[0].title, "Safari")
-        XCTAssertEqual(menu2.items[1].title, "Finder")
+        XCTAssertEqual(menu2.items[0].representedObject as? String, "com.apple.Safari")
+        XCTAssertEqual(menu2.items[1].representedObject as? String, "com.apple.Finder")
     }
 }

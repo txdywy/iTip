@@ -3,14 +3,18 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var statusBarController: StatusBarController?
     private var activationMonitor: ActivationMonitor?
+    private var networkMonitor: NetworkMonitor?
     private let appLauncher = AppLauncher()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let store = UsageStore()
         let ranker = UsageRanker()
+        let monitor = NetworkMonitor()
+        self.networkMonitor = monitor
 
-        activationMonitor = ActivationMonitor(store: store)
+        activationMonitor = ActivationMonitor(store: store, networkMonitor: monitor)
         activationMonitor?.startMonitoring()
+        monitor.startPolling(interval: 5.0)
 
         let menuPresenter = MenuPresenter(store: store, ranker: ranker)
         menuPresenter.menuItemTarget = self
@@ -31,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         activationMonitor?.stopMonitoring()
+        networkMonitor?.stopPolling()
     }
 
     // MARK: - Menu Item Actions

@@ -7,8 +7,10 @@ struct UsageRecord: Codable, Equatable {
     let activationCount: Int
     /// Cumulative foreground active time in seconds.
     let totalActiveSeconds: TimeInterval
+    /// Cumulative network usage in bytes (upload + download).
+    let totalBytes: Int64
 
-    /// Backward-compatible decoding: defaults totalActiveSeconds to 0 if missing.
+    /// Backward-compatible decoding: defaults missing fields to 0.
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         bundleIdentifier = try container.decode(String.self, forKey: .bundleIdentifier)
@@ -16,13 +18,15 @@ struct UsageRecord: Codable, Equatable {
         lastActivatedAt = try container.decode(Date.self, forKey: .lastActivatedAt)
         activationCount = try container.decode(Int.self, forKey: .activationCount)
         totalActiveSeconds = try container.decodeIfPresent(TimeInterval.self, forKey: .totalActiveSeconds) ?? 0
+        totalBytes = try container.decodeIfPresent(Int64.self, forKey: .totalBytes) ?? 0
     }
 
-    init(bundleIdentifier: String, displayName: String, lastActivatedAt: Date, activationCount: Int, totalActiveSeconds: TimeInterval = 0) {
+    init(bundleIdentifier: String, displayName: String, lastActivatedAt: Date, activationCount: Int, totalActiveSeconds: TimeInterval = 0, totalBytes: Int64 = 0) {
         self.bundleIdentifier = bundleIdentifier
         self.displayName = displayName
         self.lastActivatedAt = lastActivatedAt
         self.activationCount = activationCount
         self.totalActiveSeconds = totalActiveSeconds
+        self.totalBytes = totalBytes
     }
 }

@@ -18,6 +18,9 @@ final class MenuPresenter {
     /// When this returns `false`, a permission warning is shown in the menu.
     var isMonitoringAvailable: () -> Bool = { true }
 
+    private var appURLCache: [String: URL?] = [:]
+    private var iconCache: [String: NSImage] = [:]
+
     init(store: UsageStoreProtocol, ranker: UsageRanker = UsageRanker()) {
         self.store = store
         self.ranker = ranker
@@ -47,7 +50,7 @@ final class MenuPresenter {
         var removedIdentifiers: Set<String> = []
 
         for record in ranked {
-            if NSWorkspace.shared.urlForApplication(withBundleIdentifier: record.bundleIdentifier) != nil {
+            if cachedURL(for: record.bundleIdentifier) != nil {
                 validRecords.append(record)
             } else {
                 removedIdentifiers.insert(record.bundleIdentifier)
@@ -58,6 +61,11 @@ final class MenuPresenter {
         if !removedIdentifiers.isEmpty {
             let cleaned = records.filter { !removedIdentifiers.contains($0.bundleIdentifier) }
             try? store.save(cleaned)
+            // Invalidate cache for removed apps
+            for id in removedIdentifiers {
+                appURLCache.removeValue(forKey: id)
+                iconCache.removeValue(forKey: id)
+            }
         }
 
         if validRecords.isEmpty {
@@ -70,8 +78,8 @@ final class MenuPresenter {
                 item.target = menuItemTarget
                 item.representedObject = record.bundleIdentifier
                 item.attributedTitle = MenuPresenter.attributedTitle(for: record)
-                if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: record.bundleIdentifier) {
-                    item.image = NSWorkspace.shared.icon(forFile: appURL.path)
+                if let appURL = cachedURL(for: record.bundleIdentifier) {
+                    item.image = cachedIcon(for: appURL)
                     item.image?.size = NSSize(width: 16, height: 16)
                 }
                 menu.addItem(item)
@@ -86,23 +94,54 @@ final class MenuPresenter {
         return menu
     }
 
+    // MARK: - Caching
+
+    private func cachedURL(for bundleIdentifier: String) -> URL? {
+        if let cached = appURLCache[bundleIdentifier] {
+            return cached
+        }
+        let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier)
+        appURLCache[bundleIdentifier] = url
+        return url
+    }
+
+    private func cachedIcon(for appURL: URL) -> NSImage? {
+        let path = appURL.path
+        if let cached = iconCache[path] {
+            return cached
+        }
+        let image = NSWorkspace.shared.icon(forFile: path)
+        iconCache[path] = image
+        return image
+    }
+
+    // MARK: - Name Truncation
+
+    private static func truncateName(_ name: String, maxChars: Int = 10) -> String {
+        if name.count <= maxChars { return name }
+        return String(name.prefix(maxChars - 1)) + "…"
+    }
+
     // MARK: - Attributed Title
 
     private static func attributedTitle(for record: UsageRecord) -> NSAttributedString {
         let relativeTime = relativeFormatter.localizedString(for: record.lastActivatedAt, relativeTo: Date())
         let duration = formatDuration(record.totalActiveSeconds)
+        let traffic = formatBytes(record.totalBytes)
         let countStr = "×\(record.activationCount)"
 
         // Use tab stops for column alignment
-        let tab1: CGFloat = 160  // after app name → count column
-        let tab2: CGFloat = 220  // after count → duration column
-        let tab3: CGFloat = 290  // after duration → relative time column
+        let tab1: CGFloat = 140  // after app name → count column
+        let tab2: CGFloat = 200  // after count → duration column
+        let tab3: CGFloat = 270  // after duration → traffic column
+        let tab4: CGFloat = 340  // after traffic → relative time column
 
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.tabStops = [
             NSTextTab(textAlignment: .right, location: tab1),
             NSTextTab(textAlignment: .right, location: tab2),
             NSTextTab(textAlignment: .right, location: tab3),
+            NSTextTab(textAlignment: .right, location: tab4),
         ]
 
         let nameFont = NSFont.menuFont(ofSize: 13)
@@ -111,8 +150,8 @@ final class MenuPresenter {
 
         let result = NSMutableAttributedString()
 
-        // App name
-        result.append(NSAttributedString(string: record.displayName, attributes: [
+        // App name (truncated to keep columns aligned)
+        result.append(NSAttributedString(string: truncateName(record.displayName), attributes: [
             .font: nameFont,
             .paragraphStyle: paragraphStyle,
         ]))
@@ -126,6 +165,13 @@ final class MenuPresenter {
 
         // Tab + duration
         result.append(NSAttributedString(string: "\t\(duration)", attributes: [
+            .font: statsFont,
+            .foregroundColor: dimColor,
+            .paragraphStyle: paragraphStyle,
+        ]))
+
+        // Tab + traffic
+        result.append(NSAttributedString(string: "\t\(traffic)", attributes: [
             .font: statsFont,
             .foregroundColor: dimColor,
             .paragraphStyle: paragraphStyle,
@@ -154,5 +200,17 @@ final class MenuPresenter {
             return "⏱\(hours)h\(minutes)m"
         }
         return "⏱\(minutes)m"
+    }
+
+    // MARK: - Traffic Formatting
+
+    /// Formats bytes into a human-readable string with adaptive units.
+    /// e.g. 512 → "512B", 1536 → "1.5KB", 2097152 → "2.0MB"
+    static func formatBytes(_ bytes: Int64) -> String {
+        let absBytes = Double(bytes)
+        if absBytes < 1024 { return "\(bytes)B" }
+        if absBytes < 1024 * 1024 { return String(format: "%.1fKB", absBytes / 1024) }
+        if absBytes < 1024 * 1024 * 1024 { return String(format: "%.1fMB", absBytes / (1024 * 1024)) }
+        return String(format: "%.2fGB", absBytes / (1024 * 1024 * 1024))
     }
 }
