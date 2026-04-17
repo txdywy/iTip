@@ -27,6 +27,7 @@ jobs:
         run: |
           cd build/Build/Products/Release
           codesign --force --deep --sign - iTip.app
+          xattr -cr iTip.app
           ditto -c -k --sequesterRsrc --keepParent iTip.app iTip.zip
 
       - name: Upload artifact
