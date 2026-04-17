@@ -21,12 +21,12 @@ jobs:
             -scheme iTip \
             -configuration Release \
             -derivedDataPath build \
-            CODE_SIGN_IDENTITY="-" \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGN_IDENTITY="-"
 
       - name: Package app
         run: |
           cd build/Build/Products/Release
+          codesign --force --deep --sign - iTip.app
           zip -r iTip.zip iTip.app
 
       - name: Upload artifact
