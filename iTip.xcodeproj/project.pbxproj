@@ -30,6 +30,7 @@
 		A00000000000000000000025 /* AppLauncherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000012A /* AppLauncherTests.swift */; };
 		A00000000000000000000026 /* IntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000012B /* IntegrationTests.swift */; };
 		A00000000000000000000027 /* SpotlightSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000011C /* SpotlightSeeder.swift */; };
+		A00000000000000000000028 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000011D /* AppIcon.icns */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -58,6 +59,7 @@
 		A0000000000000000000012A /* AppLauncherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLauncherTests.swift; sourceTree = "<group>"; };
 		A0000000000000000000012B /* IntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationTests.swift; sourceTree = "<group>"; };
 		A0000000000000000000011C /* SpotlightSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotlightSeeder.swift; sourceTree = "<group>"; };
+		A0000000000000000000011D /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -104,6 +106,7 @@
 				A0000000000000000000011A /* MenuPresenter.swift */,
 				A0000000000000000000011B /* AppLauncher.swift */,
 				A0000000000000000000011C /* SpotlightSeeder.swift */,
+				A0000000000000000000011D /* AppIcon.icns */,
 				A00000000000000000000114 /* Info.plist */,
 			);
 		};
@@ -217,6 +220,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A00000000000000000000028 /* AppIcon.icns in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

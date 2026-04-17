@@ -1,6 +1,5 @@
 import AppKit
 
-@MainActor
 final class StatusBarController: NSObject, NSMenuDelegate {
     static let defaultTitle = "iTip"
 
@@ -15,15 +14,19 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
         self.statusItem = statusItem
         self.menuPresenter = menuPresenter
-        applyTitle = { [weak statusItem] in statusItem?.button?.title = $0 }
-        removeStatusItem = { [weak statusBar, weak statusItem] in
-            guard let item = statusItem else { return }
-            statusBar?.removeStatusItem(item)
-        }
+        applyTitle = { statusItem.button?.title = $0 }
+        removeStatusItem = { statusBar.removeStatusItem(statusItem) }
 
         super.init()
 
-        applyTitle(Self.defaultTitle)
+        // Use SF Symbol for menu bar icon
+        if let image = NSImage(systemSymbolName: "bolt.circle.fill", accessibilityDescription: "iTip") {
+            image.isTemplate = true
+            statusItem.button?.image = image
+            statusItem.button?.title = ""
+        } else {
+            applyTitle(Self.defaultTitle)
+        }
 
         if let menuPresenter = menuPresenter {
             let menu = menuPresenter.buildMenu()
