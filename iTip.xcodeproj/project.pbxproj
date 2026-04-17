@@ -31,8 +31,6 @@
 		A00000000000000000000026 /* IntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000012B /* IntegrationTests.swift */; };
 		A00000000000000000000027 /* SpotlightSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000011C /* SpotlightSeeder.swift */; };
 		A00000000000000000000028 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000011D /* AppIcon.icns */; };
-		A00000000000000000000029 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000011E /* NetworkMonitor.swift */; };
-		A0000000000000000000002A /* ProcessResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000011F /* ProcessResolver.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -61,8 +59,6 @@
 		A0000000000000000000011B /* AppLauncher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLauncher.swift; sourceTree = "<group>"; };
 		A0000000000000000000011C /* SpotlightSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotlightSeeder.swift; sourceTree = "<group>"; };
 		A0000000000000000000011D /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
-		A0000000000000000000011E /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
-		A0000000000000000000011F /* ProcessResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessResolver.swift; sourceTree = "<group>"; };
 		A00000000000000000000121 /* StatusBarControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBarControllerTests.swift; sourceTree = "<group>"; };
 		A00000000000000000000122 /* InMemoryUsageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InMemoryUsageStore.swift; sourceTree = "<group>"; };
 		A00000000000000000000123 /* UsageStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageStoreTests.swift; sourceTree = "<group>"; };
@@ -119,8 +115,6 @@
 				A0000000000000000000011B /* AppLauncher.swift */,
 				A0000000000000000000011C /* SpotlightSeeder.swift */,
 				A0000000000000000000011D /* AppIcon.icns */,
-				A0000000000000000000011E /* NetworkMonitor.swift */,
-				A0000000000000000000011F /* ProcessResolver.swift */,
 				A00000000000000000000114 /* Info.plist */,
 			);
 			path = iTip;
@@ -265,8 +259,6 @@
 				A00000000000000000000022 /* MenuPresenter.swift in Sources */,
 				A00000000000000000000024 /* AppLauncher.swift in Sources */,
 				A00000000000000000000027 /* SpotlightSeeder.swift in Sources */,
-				A00000000000000000000029 /* NetworkMonitor.swift in Sources */,
-				A0000000000000000000002A /* ProcessResolver.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
