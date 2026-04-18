@@ -28,6 +28,7 @@ final class ActivationMonitorPropertyTests: XCTestCase {
                 bundleIdentifier: existingRecord.bundleIdentifier,
                 displayName: existingRecord.displayName
             )
+            monitor.flush()
 
             guard let records = try? store.load(), records.count == 1 else {
                 return false
@@ -68,6 +69,7 @@ final class ActivationMonitorPropertyTests: XCTestCase {
             )
 
             monitor.recordActivation(bundleIdentifier: newBundleId, displayName: "New App")
+            monitor.flush()
 
             guard let records = try? store.load() else { return false }
 

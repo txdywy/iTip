@@ -42,8 +42,9 @@ final class UsageStore: UsageStoreProtocol {
                 return records
             } catch {
                 os_log("Failed to decode usage records: %{public}@", log: UsageStore.logger, type: .error, error.localizedDescription)
-                cachedRecords = []
-                return []
+                // Don't cache an empty result — the file is still on disk and
+                // may be recoverable. Throwing lets callers decide how to handle it.
+                throw error
             }
         }
     }
@@ -62,5 +63,48 @@ final class UsageStore: UsageStoreProtocol {
             try data.write(to: storageURL, options: .atomic)
             cachedRecords = records
         }
+        NotificationCenter.default.post(name: .usageStoreDidUpdate, object: self)
+    }
+
+    func updateRecords(_ modify: (inout [UsageRecord]) -> Void) throws {
+        try queue.sync {
+            // Load current state (cache or disk)
+            var records: [UsageRecord]
+            if let cachedRecords {
+                records = cachedRecords
+            } else {
+                let fileManager = FileManager.default
+                if fileManager.fileExists(atPath: storageURL.path) {
+                    let data = try Data(contentsOf: storageURL)
+                    do {
+                        let decoder = JSONDecoder()
+                        records = try decoder.decode([UsageRecord].self, from: data)
+                    } catch {
+                        os_log("Failed to decode usage records in updateRecords: %{public}@", log: UsageStore.logger, type: .error, error.localizedDescription)
+                        // Propagate error — callers (ActivationMonitor, NetworkTracker)
+                        // have catch blocks that handle it gracefully.
+                        // Using an empty array here would cause the modify closure
+                        // to save partial data, permanently overwriting the file.
+                        throw error
+                    }
+                } else {
+                    records = []
+                }
+            }
+
+            modify(&records)
+
+            let fileManager = FileManager.default
+            let directory = storageURL.deletingLastPathComponent()
+            if !fileManager.fileExists(atPath: directory.path) {
+                try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+            }
+
+            let encoder = JSONEncoder()
+            let data = try encoder.encode(records)
+            try data.write(to: storageURL, options: .atomic)
+            cachedRecords = records
+        }
+        NotificationCenter.default.post(name: .usageStoreDidUpdate, object: self)
     }
 }

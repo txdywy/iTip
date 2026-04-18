@@ -48,15 +48,17 @@ final class UsageStoreTests: XCTestCase {
         XCTAssertEqual(loaded, records)
     }
 
-    // MARK: - Requirements 3.5: Corrupted JSON → empty array
+    // MARK: - Requirements 3.5: Corrupted JSON → throws error (preserves file for recovery)
 
-    func testLoadReturnsEmptyArrayWhenFileContainsCorruptedJSON() throws {
+    func testLoadThrowsWhenFileContainsCorruptedJSON() throws {
         let corruptedData = Data("not valid json {{{".utf8)
         try corruptedData.write(to: storageURL)
 
         let store = UsageStore(storageURL: storageURL)
-        let records = try store.load()
-        XCTAssertEqual(records, [])
+        XCTAssertThrowsError(try store.load()) { error in
+            // Verify it's a decoding error, not silently swallowed
+            XCTAssertTrue(error is DecodingError)
+        }
     }
 
     // MARK: - Requirements 3.2: Atomic write does not corrupt existing data

@@ -2,13 +2,13 @@ import Foundation
 
 struct UsageRecord: Codable, Equatable {
     let bundleIdentifier: String
-    let displayName: String
-    let lastActivatedAt: Date
-    let activationCount: Int
+    var displayName: String
+    var lastActivatedAt: Date
+    var activationCount: Int
     /// Cumulative foreground active time in seconds.
-    let totalActiveSeconds: TimeInterval
+    var totalActiveSeconds: TimeInterval
     /// Cumulative downloaded bytes.
-    let totalBytesDownloaded: Int64
+    var totalBytesDownloaded: Int64
 
     /// Backward-compatible decoding: defaults new fields to 0 if missing.
     init(from decoder: Decoder) throws {

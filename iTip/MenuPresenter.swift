@@ -15,10 +15,27 @@ final class MenuPresenter {
     private static let col3: CGFloat = 280  // Traffic
     private static let col4: CGFloat = 360  // Last
 
+    /// Lazily-created shared paragraph style (identical for every row).
+    private static let paragraphStyle: NSParagraphStyle = {
+        let ps = NSMutableParagraphStyle()
+        ps.tabStops = [
+            NSTextTab(textAlignment: .right, location: col1),
+            NSTextTab(textAlignment: .right, location: col2),
+            NSTextTab(textAlignment: .right, location: col3),
+            NSTextTab(textAlignment: .right, location: col4),
+        ]
+        return ps
+    }()
+
     /// Cache app icons to avoid repeated disk lookups.
     private var iconCache: [String: NSImage] = [:]
     /// Cache app URL resolution results.
     private var urlCache: [String: URL?] = [:]
+
+    /// Cached records to avoid hitting the store on every menu open.
+    private var cachedRecords: [UsageRecord]?
+    /// Observer for store-change notifications.
+    private var storeObserver: NSObjectProtocol?
 
     /// Target for app menu item click actions (typically the AppDelegate).
     weak var menuItemTarget: AnyObject?
@@ -31,6 +48,21 @@ final class MenuPresenter {
     init(store: UsageStoreProtocol, ranker: UsageRanker = UsageRanker()) {
         self.store = store
         self.ranker = ranker
+
+        // Invalidate cache whenever the store is updated (e.g. by ActivationMonitor or NetworkTracker)
+        storeObserver = NotificationCenter.default.addObserver(
+            forName: .usageStoreDidUpdate,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.cachedRecords = nil
+        }
+    }
+
+    deinit {
+        if let observer = storeObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
     }
 
     func buildMenu() -> NSMenu {
@@ -43,11 +75,13 @@ final class MenuPresenter {
             menu.addItem(NSMenuItem.separator())
         }
 
+        // Use cached records if available, otherwise load from store
         let records: [UsageRecord]
-        do {
-            records = try store.load()
-        } catch {
-            records = []
+        if let cached = cachedRecords {
+            records = cached
+        } else {
+            records = (try? store.load()) ?? []
+            cachedRecords = records
         }
 
         let ranked = ranker.rank(records)
@@ -73,6 +107,7 @@ final class MenuPresenter {
 
         if !removedIdentifiers.isEmpty {
             let cleaned = records.filter { !removedIdentifiers.contains($0.bundleIdentifier) }
+            cachedRecords = cleaned
             DispatchQueue.global(qos: .utility).async { [store] in
                 try? store.save(cleaned)
             }
@@ -126,23 +161,9 @@ final class MenuPresenter {
         return icon
     }
 
-    // MARK: - Shared Paragraph Style
-
-    private static func sharedParagraphStyle() -> NSMutableParagraphStyle {
-        let ps = NSMutableParagraphStyle()
-        ps.tabStops = [
-            NSTextTab(textAlignment: .right, location: col1),
-            NSTextTab(textAlignment: .right, location: col2),
-            NSTextTab(textAlignment: .right, location: col3),
-            NSTextTab(textAlignment: .right, location: col4),
-        ]
-        return ps
-    }
-
     // MARK: - Header
 
     private static func headerTitle() -> NSAttributedString {
-        let paragraphStyle = sharedParagraphStyle()
         let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
         let color = NSColor.tertiaryLabelColor
         let attrs: [NSAttributedString.Key: Any] = [
@@ -168,7 +189,6 @@ final class MenuPresenter {
         let countStr = "×\(record.activationCount)"
         let dlStr = "↓\(formatBytes(record.totalBytesDownloaded))"
 
-        let paragraphStyle = sharedParagraphStyle()
         let nameFont = NSFont.menuFont(ofSize: 13)
         let statsFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
         let dimColor = NSColor.secondaryLabelColor
@@ -223,7 +243,7 @@ final class MenuPresenter {
     static func formatBytes(_ bytes: Int64) -> String {
         if bytes < 1024 { return "\(bytes)B" }
         let kb = Double(bytes) / 1024
-        if kb < 1024 { return String(format: "%.0fKB", kb) }
+        if kb < 1024 { return String(format: "%.1fKB", kb) }
         let mb = kb / 1024
         if mb < 1024 { return String(format: "%.1fMB", mb) }
         let gb = mb / 1024

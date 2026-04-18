@@ -8,9 +8,15 @@ final class NetworkTracker {
     private let store: UsageStoreProtocol
     private var timer: DispatchSourceTimer?
     private let queue = DispatchQueue(label: "com.example.iTip.networkTracker", qos: .utility)
+    /// Separate queue for the timeout safety net so it can fire even while
+    /// `process.waitUntilExit()` blocks the sampling queue.
+    private let timeoutQueue = DispatchQueue(label: "com.example.iTip.networkTracker.timeout", qos: .utility)
 
     /// Accumulated bytes per bundle ID (in-memory, flushed periodically).
     private var accumulatedBytes: [String: Int64] = [:]
+
+    /// Maximum time to wait for a single nettop sample before terminating it.
+    private static let sampleTimeout: TimeInterval = 8.0
 
     init(store: UsageStoreProtocol) {
         self.store = store
@@ -53,22 +59,14 @@ final class NetworkTracker {
         accumulatedBytes.removeAll()
 
         do {
-            var records = try store.load()
-            for (bundleID, bytes) in snapshot {
-                if let idx = records.firstIndex(where: { $0.bundleIdentifier == bundleID }) {
-                    let r = records[idx]
-                    records[idx] = UsageRecord(
-                        bundleIdentifier: r.bundleIdentifier,
-                        displayName: r.displayName,
-                        lastActivatedAt: r.lastActivatedAt,
-                        activationCount: r.activationCount,
-                        totalActiveSeconds: r.totalActiveSeconds,
-                        totalBytesDownloaded: r.totalBytesDownloaded + bytes
-                    )
+            try store.updateRecords { records in
+                for (bundleID, bytes) in snapshot {
+                    if let idx = records.firstIndex(where: { $0.bundleIdentifier == bundleID }) {
+                        records[idx].totalBytesDownloaded += bytes
+                    }
+                    // Only update existing records — don't create new ones just for network data
                 }
-                // Only update existing records — don't create new ones just for network data
             }
-            try store.save(records)
         } catch {
             // Put bytes back if save failed
             for (k, v) in snapshot {
@@ -88,7 +86,18 @@ final class NetworkTracker {
 
         do {
             try process.run()
+
+            // Schedule a safety-net termination in case nettop hangs
+            let terminationWork = DispatchWorkItem {
+                if process.isRunning { process.terminate() }
+            }
+            timeoutQueue.asyncAfter(deadline: .now() + Self.sampleTimeout, execute: terminationWork)
+
             process.waitUntilExit()
+            terminationWork.cancel()
+
+            guard process.terminationStatus == 0 else { return nil }
+
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             return String(data: data, encoding: .utf8)
         } catch {

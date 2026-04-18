@@ -22,6 +22,7 @@ final class ActivationMonitorTests: XCTestCase {
         let monitor = makeMonitor(store: store, selfId: "com.example.iTip")
 
         monitor.recordActivation(bundleIdentifier: "com.example.iTip", displayName: "iTip")
+        monitor.flush()
 
         let records = try! store.load()
         XCTAssertTrue(records.isEmpty, "Self-activation should be filtered out")
@@ -37,6 +38,7 @@ final class ActivationMonitorTests: XCTestCase {
         // Simulate the fallback: caller passes bundleIdentifier as displayName
         let bundleId = "com.apple.Safari"
         monitor.recordActivation(bundleIdentifier: bundleId, displayName: bundleId)
+        monitor.flush()
 
         let records = try! store.load()
         XCTAssertEqual(records.count, 1)
@@ -50,6 +52,7 @@ final class ActivationMonitorTests: XCTestCase {
         let monitor = makeMonitor(store: store)
 
         monitor.recordActivation(bundleIdentifier: "com.apple.Finder", displayName: "Finder")
+        monitor.flush()
 
         let records = try! store.load()
         XCTAssertEqual(records.count, 1)
@@ -57,7 +60,7 @@ final class ActivationMonitorTests: XCTestCase {
         XCTAssertEqual(records[0].displayName, "Finder")
         XCTAssertEqual(records[0].activationCount, 1)
         XCTAssertEqual(records[0].lastActivatedAt, fixedDate)
-        XCTAssertEqual(records[0].totalBytes, 0)
+        XCTAssertEqual(records[0].totalBytesDownloaded, 0)
     }
 
     // MARK: - Requirement 2.3: Existing app increments count by 1
@@ -73,6 +76,7 @@ final class ActivationMonitorTests: XCTestCase {
         let monitor = makeMonitor(store: store)
 
         monitor.recordActivation(bundleIdentifier: "com.apple.Safari", displayName: "Safari")
+        monitor.flush()
 
         let records = try! store.load()
         XCTAssertEqual(records.count, 1)
@@ -82,20 +86,17 @@ final class ActivationMonitorTests: XCTestCase {
 
     // MARK: - Requirement 2.1: Missing bundleIdentifier events are ignored
 
-    /// Since recordActivation requires a bundleIdentifier parameter, the filtering
-    /// happens in handleActivation (private). We verify that self-filtering works
-    /// as the analogous guard, and that empty-string bundleIdentifier still records
-    /// (the guard is on the notification level, not recordActivation).
-    func testEmptyBundleIdentifierStillRecords() {
+    /// Since recordActivation now guards against empty bundleIdentifier strings,
+    /// empty-string activations are filtered out (matching the behavior that
+    /// handleActivation already had by checking for nil/empty bundleIdentifier).
+    func testEmptyBundleIdentifierIsIgnored() {
         let store = InMemoryUsageStore()
         let monitor = makeMonitor(store: store)
 
-        // Empty string is not the self identifier, so it passes through
+        // Empty string is now filtered by recordActivation
         monitor.recordActivation(bundleIdentifier: "", displayName: "Unknown")
 
         let records = try! store.load()
-        // recordActivation doesn't filter empty strings - that's handleActivation's job
-        // This test documents the boundary: recordActivation trusts its caller
-        XCTAssertEqual(records.count, 1)
+        XCTAssertEqual(records.count, 0, "Empty bundleIdentifier should be filtered out")
     }
 }

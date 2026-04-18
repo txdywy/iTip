@@ -10,7 +10,11 @@ final class ActivationMonitor {
     private var observer: NSObjectProtocol?
 
     /// In-memory cache of records to avoid disk I/O on every activation.
-    private var cachedRecords: [UsageRecord]?
+    private var cachedRecords: [UsageRecord] = []
+    /// O(1) lookup index: bundleIdentifier → index in cachedRecords.
+    private var indexByBundleID: [String: Int] = [:]
+    /// Whether the cache has been populated from the store.
+    private var cacheInitialized = false
     /// Timer to debounce disk writes.
     private var saveTimer: Timer?
     /// Whether the cache has unsaved changes.
@@ -34,8 +38,7 @@ final class ActivationMonitor {
     }
 
     func startMonitoring() {
-        // Load records into memory cache once
-        cachedRecords = (try? store.load()) ?? []
+        populateCache()
 
         observer = notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification,
@@ -63,31 +66,41 @@ final class ActivationMonitor {
         isMonitoring = false
     }
 
+    // MARK: - Cache Management
+
+    /// Persists any unsaved in-memory changes to the store.
+    /// Useful for testing or when immediate persistence is needed.
+    func flush() {
+        flushIfDirty()
+    }
+
+    private func populateCache() {
+        cachedRecords = (try? store.load()) ?? []
+        rebuildIndex()
+        cacheInitialized = true
+    }
+
+    private func ensureCacheInitialized() {
+        guard !cacheInitialized else { return }
+        populateCache()
+    }
+
     func recordActivation(bundleIdentifier: String, displayName: String) {
         guard bundleIdentifier != selfBundleIdentifier else { return }
+        guard !bundleIdentifier.isEmpty else { return }
 
-        if cachedRecords == nil {
-            cachedRecords = (try? store.load()) ?? []
-        }
+        ensureCacheInitialized()
 
-        var records = cachedRecords!
         let now = dateProvider()
 
         // Accumulate foreground duration for the previously active app
         if let prevID = currentForegroundBundleID,
            let since = foregroundSince,
-           prevID != selfBundleIdentifier {
+           prevID != selfBundleIdentifier,
+           let idx = indexByBundleID[prevID] {
             let duration = now.timeIntervalSince(since)
-            if duration > 0,
-               let idx = records.firstIndex(where: { $0.bundleIdentifier == prevID }) {
-                let prev = records[idx]
-                records[idx] = UsageRecord(
-                    bundleIdentifier: prev.bundleIdentifier,
-                    displayName: prev.displayName,
-                    lastActivatedAt: prev.lastActivatedAt,
-                    activationCount: prev.activationCount,
-                    totalActiveSeconds: prev.totalActiveSeconds + duration
-                )
+            if duration > 0 {
+                cachedRecords[idx].totalActiveSeconds += duration
             }
         }
 
@@ -95,17 +108,13 @@ final class ActivationMonitor {
         currentForegroundBundleID = bundleIdentifier
         foregroundSince = now
 
-        if let index = records.firstIndex(where: { $0.bundleIdentifier == bundleIdentifier }) {
-            let existing = records[index]
-            records[index] = UsageRecord(
-                bundleIdentifier: existing.bundleIdentifier,
-                displayName: displayName,
-                lastActivatedAt: now,
-                activationCount: existing.activationCount + 1,
-                totalActiveSeconds: existing.totalActiveSeconds
-            )
+        if let idx = indexByBundleID[bundleIdentifier] {
+            cachedRecords[idx].lastActivatedAt = now
+            cachedRecords[idx].activationCount += 1
+            cachedRecords[idx].displayName = displayName
         } else {
-            records.append(UsageRecord(
+            indexByBundleID[bundleIdentifier] = cachedRecords.count
+            cachedRecords.append(UsageRecord(
                 bundleIdentifier: bundleIdentifier,
                 displayName: displayName,
                 lastActivatedAt: now,
@@ -113,16 +122,44 @@ final class ActivationMonitor {
             ))
         }
 
-        cachedRecords = records
         isDirty = true
     }
 
     // MARK: - Private
 
+    private func rebuildIndex() {
+        indexByBundleID.removeAll(keepingCapacity: true)
+        for (i, record) in cachedRecords.enumerated() {
+            indexByBundleID[record.bundleIdentifier] = i
+        }
+    }
+
     private func flushIfDirty() {
-        guard isDirty, let records = cachedRecords else { return }
+        guard isDirty else { return }
         isDirty = false
-        try? store.save(records)
+
+        let snapshot = cachedRecords
+        do {
+            try store.updateRecords { diskRecords in
+                // Merge: overlay activation data from cache onto disk records,
+                // preserving network data written by NetworkTracker.
+                let diskIndex = Dictionary(diskRecords.map { ($0.bundleIdentifier, $0) }, uniquingKeysWith: { first, _ in first })
+
+                for var record in snapshot {
+                    if let diskRecord = diskIndex[record.bundleIdentifier] {
+                        record.totalBytesDownloaded = diskRecord.totalBytesDownloaded
+                    }
+                    if let idx = diskRecords.firstIndex(where: { $0.bundleIdentifier == record.bundleIdentifier }) {
+                        diskRecords[idx] = record
+                    } else {
+                        diskRecords.append(record)
+                    }
+                }
+            }
+        } catch {
+            // If merge-save fails, mark dirty so we retry next flush
+            isDirty = true
+        }
     }
 
     private func handleActivation(_ notification: Notification) {
@@ -130,7 +167,7 @@ final class ActivationMonitor {
             return
         }
 
-        guard let bundleIdentifier = app.bundleIdentifier else {
+        guard let bundleIdentifier = app.bundleIdentifier, !bundleIdentifier.isEmpty else {
             return
         }
 

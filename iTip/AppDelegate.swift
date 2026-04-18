@@ -69,6 +69,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         alert.addButton(withTitle: "OK")
-        alert.runModal()
+
+        // Non-blocking: attach to key window if available, otherwise show as floating panel
+        if let window = NSApp.windows.first(where: { $0.isVisible }) {
+            alert.beginSheetModal(for: window, completionHandler: nil)
+        } else {
+            alert.runModal()
+        }
     }
 }

@@ -38,17 +38,21 @@ final class MenuPresenterTests: XCTestCase {
         let menu = presenter.buildMenu()
 
         // Ranked order: Safari (most recent), Finder
-        // Expect: 2 app items, separator, "Quit iTip" = 4 items
-        XCTAssertEqual(menu.items.count, 4)
+        // Expect: header, separator, 2 app items, separator, "Quit iTip" = 6 items
+        XCTAssertEqual(menu.items.count, 6)
 
-        XCTAssertEqual(menu.items[0].representedObject as? String, "com.apple.Safari")
-        XCTAssertTrue(menu.items[0].attributedTitle?.string.hasPrefix("Safari") ?? false)
+        // Header row is disabled
+        XCTAssertFalse(menu.items[0].isEnabled)
+        XCTAssertTrue(menu.items[1].isSeparatorItem)
 
-        XCTAssertEqual(menu.items[1].representedObject as? String, "com.apple.Finder")
-        XCTAssertTrue(menu.items[1].attributedTitle?.string.hasPrefix("Finder") ?? false)
+        XCTAssertEqual(menu.items[2].representedObject as? String, "com.apple.Safari")
+        XCTAssertTrue(menu.items[2].attributedTitle?.string.hasPrefix("Safari") ?? false)
 
-        XCTAssertTrue(menu.items[2].isSeparatorItem)
-        XCTAssertEqual(menu.items[3].title, "Quit iTip")
+        XCTAssertEqual(menu.items[3].representedObject as? String, "com.apple.Finder")
+        XCTAssertTrue(menu.items[3].attributedTitle?.string.hasPrefix("Finder") ?? false)
+
+        XCTAssertTrue(menu.items[4].isSeparatorItem)
+        XCTAssertEqual(menu.items[5].title, "Quit iTip")
     }
 
     // MARK: - Unresolvable bundleIdentifier entries are omitted
@@ -66,12 +70,17 @@ final class MenuPresenterTests: XCTestCase {
         let menu = presenter.buildMenu()
 
         // Only Safari should appear; FakeApp is unresolvable
-        // Expect: 1 app item, separator, "Quit iTip" = 3 items
-        XCTAssertEqual(menu.items.count, 3)
-        XCTAssertEqual(menu.items[0].representedObject as? String, "com.apple.Safari")
-        XCTAssertTrue(menu.items[0].attributedTitle?.string.hasPrefix("Safari") ?? false)
+        // Expect: header, separator, 1 app item, separator, "Quit iTip" = 5 items
+        XCTAssertEqual(menu.items.count, 5)
+
+        // Header row
+        XCTAssertFalse(menu.items[0].isEnabled)
         XCTAssertTrue(menu.items[1].isSeparatorItem)
-        XCTAssertEqual(menu.items[2].title, "Quit iTip")
+
+        XCTAssertEqual(menu.items[2].representedObject as? String, "com.apple.Safari")
+        XCTAssertTrue(menu.items[2].attributedTitle?.string.hasPrefix("Safari") ?? false)
+        XCTAssertTrue(menu.items[3].isSeparatorItem)
+        XCTAssertEqual(menu.items[4].title, "Quit iTip")
 
         // Verify the fake record was cleaned from the store
         let remaining = try! store.load()

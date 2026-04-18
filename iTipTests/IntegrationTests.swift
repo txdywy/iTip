@@ -21,6 +21,7 @@ final class IntegrationTests: XCTestCase {
         // Record two known-good apps (Req 2.4 — new records created)
         monitor.recordActivation(bundleIdentifier: "com.apple.Finder", displayName: "Finder")
         monitor.recordActivation(bundleIdentifier: "com.apple.Safari", displayName: "Safari")
+        monitor.flush()
 
         // Step 2: Verify store persistence (Req 3.1)
         let savedRecords = try! store.load()
@@ -37,14 +38,14 @@ final class IntegrationTests: XCTestCase {
         let presenter = MenuPresenter(store: store, ranker: ranker)
         let menu = presenter.buildMenu()
 
-        // Menu should have: 2 app items + separator + "Quit iTip" = 4 items
+        // Menu should have: header, separator, 2 app items + separator + "Quit iTip" = 6 items
         // (both com.apple.Safari and com.apple.Finder are resolvable on macOS)
-        XCTAssertEqual(menu.items.count, 4)
-        XCTAssertTrue(menu.items[2].isSeparatorItem)
-        XCTAssertEqual(menu.items[3].title, "Quit iTip")
+        XCTAssertEqual(menu.items.count, 6)
+        XCTAssertTrue(menu.items[4].isSeparatorItem)
+        XCTAssertEqual(menu.items[5].title, "Quit iTip")
 
-        // Verify the app entries are present
-        let bundleIDs = menu.items.prefix(2).compactMap { $0.representedObject as? String }
+        // Verify the app entries are present (items 2 and 3, after header + separator)
+        let bundleIDs = [menu.items[2], menu.items[3]].compactMap { $0.representedObject as? String }
         XCTAssertTrue(bundleIDs.contains("com.apple.Safari"))
         XCTAssertTrue(bundleIDs.contains("com.apple.Finder"))
     }
@@ -70,6 +71,7 @@ final class IntegrationTests: XCTestCase {
         // Activate Finder again — should increment count (Req 2.3)
         currentDate = currentDate.addingTimeInterval(60)
         monitor.recordActivation(bundleIdentifier: "com.apple.Finder", displayName: "Finder")
+        monitor.flush()
 
         let records = try! store.load()
         let finderRecord = records.first(where: { $0.bundleIdentifier == "com.apple.Finder" })!
@@ -80,8 +82,9 @@ final class IntegrationTests: XCTestCase {
         let presenter = MenuPresenter(store: store, ranker: ranker)
         let menu = presenter.buildMenu()
 
-        XCTAssertEqual(menu.items[0].representedObject as? String, "com.apple.Finder")
-        XCTAssertEqual(menu.items[1].representedObject as? String, "com.apple.Safari")
+        // Header at 0, separator at 1, app items start at 2
+        XCTAssertEqual(menu.items[2].representedObject as? String, "com.apple.Finder")
+        XCTAssertEqual(menu.items[3].representedObject as? String, "com.apple.Safari")
     }
 
     // MARK: - 10.2 Activation → store update → menu refresh
@@ -104,15 +107,18 @@ final class IntegrationTests: XCTestCase {
         monitor.recordActivation(bundleIdentifier: "com.apple.Safari", displayName: "Safari")
         currentDate = currentDate.addingTimeInterval(60)
         monitor.recordActivation(bundleIdentifier: "com.apple.Finder", displayName: "Finder")
+        monitor.flush()
 
         // Build menu — Finder should be first (most recent)
+        // Header at 0, separator at 1, app items at 2-3
         let menu1 = presenter.buildMenu()
-        XCTAssertEqual(menu1.items[0].representedObject as? String, "com.apple.Finder")
-        XCTAssertEqual(menu1.items[1].representedObject as? String, "com.apple.Safari")
+        XCTAssertEqual(menu1.items[2].representedObject as? String, "com.apple.Finder")
+        XCTAssertEqual(menu1.items[3].representedObject as? String, "com.apple.Safari")
 
         // Now activate Safari again (Req 2.3 — update existing record)
         currentDate = currentDate.addingTimeInterval(60)
         monitor.recordActivation(bundleIdentifier: "com.apple.Safari", displayName: "Safari")
+        monitor.flush()
 
         // Verify store was updated
         let records = try! store.load()
@@ -122,7 +128,7 @@ final class IntegrationTests: XCTestCase {
 
         // Rebuild menu — Safari should now be first (Req 5.4 — fresh data on each open)
         let menu2 = presenter.buildMenu()
-        XCTAssertEqual(menu2.items[0].representedObject as? String, "com.apple.Safari")
-        XCTAssertEqual(menu2.items[1].representedObject as? String, "com.apple.Finder")
+        XCTAssertEqual(menu2.items[2].representedObject as? String, "com.apple.Safari")
+        XCTAssertEqual(menu2.items[3].representedObject as? String, "com.apple.Finder")
     }
 }
