@@ -80,6 +80,13 @@ final class MenuPresenter {
             noAppsItem.isEnabled = false
             menu.addItem(noAppsItem)
         } else {
+            // Header row
+            let header = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+            header.attributedTitle = MenuPresenter.headerTitle()
+            header.isEnabled = false
+            menu.addItem(header)
+            menu.addItem(NSMenuItem.separator())
+
             for record in validRecords {
                 let item = NSMenuItem(title: "", action: menuItemAction, keyEquivalent: "")
                 item.target = menuItemTarget
@@ -114,6 +121,37 @@ final class MenuPresenter {
     }
 
     // MARK: - Attributed Title
+
+    private static func headerTitle() -> NSAttributedString {
+        let tab1: CGFloat = 160
+        let tab2: CGFloat = 220
+        let tab3: CGFloat = 290
+        let tab4: CGFloat = 360
+
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.tabStops = [
+            NSTextTab(textAlignment: .right, location: tab1),
+            NSTextTab(textAlignment: .right, location: tab2),
+            NSTextTab(textAlignment: .right, location: tab3),
+            NSTextTab(textAlignment: .right, location: tab4),
+        ]
+
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium)
+        let color = NSColor.tertiaryLabelColor
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: color,
+            .paragraphStyle: paragraphStyle,
+        ]
+
+        let result = NSMutableAttributedString()
+        result.append(NSAttributedString(string: "App", attributes: attrs))
+        result.append(NSAttributedString(string: "\tCount", attributes: attrs))
+        result.append(NSAttributedString(string: "\tTime", attributes: attrs))
+        result.append(NSAttributedString(string: "\tTraffic", attributes: attrs))
+        result.append(NSAttributedString(string: "\tLast", attributes: attrs))
+        return result
+    }
 
     private static func attributedTitle(for record: UsageRecord) -> NSAttributedString {
         let relativeTime = relativeFormatter.localizedString(for: record.lastActivatedAt, relativeTo: Date())
