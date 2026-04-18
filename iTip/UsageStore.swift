@@ -4,6 +4,8 @@ import os.log
 final class UsageStore: UsageStoreProtocol {
 
     private let storageURL: URL
+    private let queue = DispatchQueue(label: "com.example.iTip.usageStore")
+    private var cachedRecords: [UsageRecord]?
     private static let logger = OSLog(subsystem: "com.example.iTip", category: "UsageStore")
 
     init(storageURL: URL) {
@@ -20,32 +22,45 @@ final class UsageStore: UsageStoreProtocol {
     }
 
     func load() throws -> [UsageRecord] {
-        let fileManager = FileManager.default
-        guard fileManager.fileExists(atPath: storageURL.path) else {
-            return []
-        }
+        try queue.sync {
+            if let cachedRecords {
+                return cachedRecords
+            }
 
-        let data = try Data(contentsOf: storageURL)
+            let fileManager = FileManager.default
+            guard fileManager.fileExists(atPath: storageURL.path) else {
+                cachedRecords = []
+                return []
+            }
 
-        do {
-            let decoder = JSONDecoder()
-            return try decoder.decode([UsageRecord].self, from: data)
-        } catch {
-            os_log("Failed to decode usage records: %{public}@", log: UsageStore.logger, type: .error, error.localizedDescription)
-            return []
+            let data = try Data(contentsOf: storageURL)
+
+            do {
+                let decoder = JSONDecoder()
+                let records = try decoder.decode([UsageRecord].self, from: data)
+                cachedRecords = records
+                return records
+            } catch {
+                os_log("Failed to decode usage records: %{public}@", log: UsageStore.logger, type: .error, error.localizedDescription)
+                cachedRecords = []
+                return []
+            }
         }
     }
 
     func save(_ records: [UsageRecord]) throws {
-        let fileManager = FileManager.default
-        let directory = storageURL.deletingLastPathComponent()
+        try queue.sync {
+            let fileManager = FileManager.default
+            let directory = storageURL.deletingLastPathComponent()
 
-        if !fileManager.fileExists(atPath: directory.path) {
-            try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+            if !fileManager.fileExists(atPath: directory.path) {
+                try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+            }
+
+            let encoder = JSONEncoder()
+            let data = try encoder.encode(records)
+            try data.write(to: storageURL, options: .atomic)
+            cachedRecords = records
         }
-
-        let encoder = JSONEncoder()
-        let data = try encoder.encode(records)
-        try data.write(to: storageURL, options: .atomic)
     }
 }
