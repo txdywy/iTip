@@ -148,6 +148,7 @@ final class ActivationMonitor {
                 for var record in snapshot {
                     if let diskRecord = diskIndex[record.bundleIdentifier] {
                         record.totalBytesDownloaded = diskRecord.totalBytesDownloaded
+                        record.residentMemoryBytes = diskRecord.residentMemoryBytes
                     }
                     if let idx = diskRecords.firstIndex(where: { $0.bundleIdentifier == record.bundleIdentifier }) {
                         diskRecords[idx] = record

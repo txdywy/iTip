@@ -96,4 +96,31 @@ final class MenuPresenterTests: XCTestCase {
         XCTAssertEqual(MenuPresenter.formatBytes(2_000_000), "1.9MB")
         XCTAssertEqual(MenuPresenter.formatBytes(3_000_000_000), "2.79GB")
     }
+
+    // MARK: - Memory formatting
+
+    func testFormatMemoryUsesAdaptiveUnits() {
+        XCTAssertEqual(MenuPresenter.formatMemory(0), "—")
+        XCTAssertEqual(MenuPresenter.formatMemory(512 * 1024), "<1M")  // 512KB
+        XCTAssertEqual(MenuPresenter.formatMemory(50 * 1024 * 1024), "50M")  // 50MB
+        XCTAssertEqual(MenuPresenter.formatMemory(1500 * 1024 * 1024), "1.5G")  // 1.5GB
+    }
+
+    // MARK: - Memory column appears in menu items
+
+    func testMemoryColumnAppearsInMenuItemTitle() {
+        let now = Date()
+        let records = [
+            UsageRecord(bundleIdentifier: "com.apple.Safari", displayName: "Safari",
+                        lastActivatedAt: now, activationCount: 2,
+                        residentMemoryBytes: 256 * 1024 * 1024),  // 256MB
+        ]
+        let store = InMemoryUsageStore(records: records)
+        let presenter = MenuPresenter(store: store)
+        let menu = presenter.buildMenu()
+
+        // App item at index 2 (after header + separator)
+        let title = menu.items[2].attributedTitle?.string ?? ""
+        XCTAssertTrue(title.contains("256M"), "Menu item should contain memory value, got: \(title)")
+    }
 }

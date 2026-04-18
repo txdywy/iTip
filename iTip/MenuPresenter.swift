@@ -12,8 +12,9 @@ final class MenuPresenter {
     // Shared tab stop positions for header and data rows
     private static let col1: CGFloat = 150  // Count
     private static let col2: CGFloat = 210  // Time
-    private static let col3: CGFloat = 280  // Traffic
-    private static let col4: CGFloat = 360  // Last
+    private static let col3: CGFloat = 280  // Mem
+    private static let col4: CGFloat = 360  // Traffic
+    private static let col5: CGFloat = 440  // Last
 
     /// Lazily-created shared paragraph style (identical for every row).
     private static let paragraphStyle: NSParagraphStyle = {
@@ -23,6 +24,7 @@ final class MenuPresenter {
             NSTextTab(textAlignment: .right, location: col2),
             NSTextTab(textAlignment: .right, location: col3),
             NSTextTab(textAlignment: .right, location: col4),
+            NSTextTab(textAlignment: .right, location: col5),
         ]
         return ps
     }()
@@ -176,6 +178,7 @@ final class MenuPresenter {
         result.append(NSAttributedString(string: "App", attributes: attrs))
         result.append(NSAttributedString(string: "\tCount", attributes: attrs))
         result.append(NSAttributedString(string: "\tTime", attributes: attrs))
+        result.append(NSAttributedString(string: "\tMem", attributes: attrs))
         result.append(NSAttributedString(string: "\tTraffic", attributes: attrs))
         result.append(NSAttributedString(string: "\tLast", attributes: attrs))
         return result
@@ -187,6 +190,7 @@ final class MenuPresenter {
         let relativeTime = relativeFormatter.localizedString(for: record.lastActivatedAt, relativeTo: Date())
         let duration = formatDuration(record.totalActiveSeconds)
         let countStr = "×\(record.activationCount)"
+        let memStr = formatMemory(record.residentMemoryBytes)
         let dlStr = "↓\(formatBytes(record.totalBytesDownloaded))"
 
         let nameFont = NSFont.menuFont(ofSize: 13)
@@ -207,6 +211,12 @@ final class MenuPresenter {
         ]))
 
         result.append(NSAttributedString(string: "\t\(duration)", attributes: [
+            .font: statsFont,
+            .foregroundColor: dimColor,
+            .paragraphStyle: paragraphStyle,
+        ]))
+
+        result.append(NSAttributedString(string: "\t\(memStr)", attributes: [
             .font: statsFont,
             .foregroundColor: dimColor,
             .paragraphStyle: paragraphStyle,
@@ -248,5 +258,14 @@ final class MenuPresenter {
         if mb < 1024 { return String(format: "%.1fMB", mb) }
         let gb = mb / 1024
         return String(format: "%.2fGB", gb)
+    }
+
+    static func formatMemory(_ bytes: Int64) -> String {
+        if bytes <= 0 { return "—" }
+        let mb = Double(bytes) / (1024 * 1024)
+        if mb < 1 { return "<1M" }
+        if mb < 1024 { return String(format: "%.0fM", mb) }
+        let gb = mb / 1024
+        return String(format: "%.1fG", gb)
     }
 }
