@@ -142,15 +142,21 @@ final class ActivationMonitor {
         do {
             try store.updateRecords { diskRecords in
                 // Merge: overlay activation data from cache onto disk records,
-                // preserving network data written by NetworkTracker.
+                // preserving data written by NetworkTracker and MemorySampler.
                 let diskIndex = Dictionary(diskRecords.map { ($0.bundleIdentifier, $0) }, uniquingKeysWith: { first, _ in first })
+
+                // Build a lookup for O(1) index access in diskRecords
+                var diskRecordIndex: [String: Int] = [:]
+                for (i, record) in diskRecords.enumerated() {
+                    diskRecordIndex[record.bundleIdentifier] = i
+                }
 
                 for var record in snapshot {
                     if let diskRecord = diskIndex[record.bundleIdentifier] {
                         record.totalBytesDownloaded = diskRecord.totalBytesDownloaded
                         record.residentMemoryBytes = diskRecord.residentMemoryBytes
                     }
-                    if let idx = diskRecords.firstIndex(where: { $0.bundleIdentifier == record.bundleIdentifier }) {
+                    if let idx = diskRecordIndex[record.bundleIdentifier] {
                         diskRecords[idx] = record
                     } else {
                         diskRecords.append(record)

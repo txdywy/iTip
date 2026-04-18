@@ -32,9 +32,13 @@ final class MemorySampler {
     // MARK: - Private
 
     private func sample() {
-        guard let output = runPS() else { return }
+        let output = ProcessRunner.run(
+            executableURL: URL(fileURLWithPath: "/bin/ps"),
+            arguments: ["-axo", "pid=,rss="]
+        )
+        guard let output else { return }
         let perPID = parsePS(output)
-        let perBundle = mapToBundleIDs(perPID)
+        let perBundle = ProcessUtils.mapToBundleIDs(perPID)
 
         guard !perBundle.isEmpty else { return }
 
@@ -52,27 +56,6 @@ final class MemorySampler {
         }
     }
 
-    /// Run `ps -axo pid=,rss=` to get PID and RSS (in KB) for all processes.
-    private func runPS() -> String? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/ps")
-        process.arguments = ["-axo", "pid=,rss="]
-
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-
-        do {
-            try process.run()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else { return nil }
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            return String(data: data, encoding: .utf8)
-        } catch {
-            return nil
-        }
-    }
-
     /// Parse `ps` output into [PID: rssBytes].
     /// Input format: lines of "  PID  RSS" (RSS in KB).
     private func parsePS(_ output: String) -> [pid_t: Int64] {
@@ -87,28 +70,6 @@ final class MemorySampler {
             let rssBytes = rssKB * 1024  // Convert KB → bytes
             if rssBytes > 0 {
                 result[pid] = rssBytes
-            }
-        }
-        return result
-    }
-
-    /// Map PIDs to bundle identifiers using NSRunningApplication.
-    private func mapToBundleIDs(_ perPID: [pid_t: Int64]) -> [String: Int64] {
-        var result: [String: Int64] = [:]
-        let runningApps = NSWorkspace.shared.runningApplications
-
-        // Build PID → bundleID lookup
-        var pidToBundleID: [pid_t: String] = [:]
-        for app in runningApps {
-            if let bid = app.bundleIdentifier {
-                pidToBundleID[app.processIdentifier] = bid
-            }
-        }
-
-        for (pid, rss) in perPID {
-            if let bundleID = pidToBundleID[pid] {
-                // Aggregate per bundle ID (a single app may have multiple processes/PIDs)
-                result[bundleID, default: 0] += rss
             }
         }
         return result

@@ -15,13 +15,13 @@ struct SpotlightSeeder {
     /// Queries Spotlight for application bundles with recent usage data.
     func seedIfEmpty() {
         do {
-            let existing = try store.load()
-            guard existing.isEmpty else { return }
-
             let records = querySpotlightForRecentApps()
             guard !records.isEmpty else { return }
 
-            try store.save(records)
+            try store.updateRecords { existing in
+                guard existing.isEmpty else { return }
+                existing.append(contentsOf: records)
+            }
         } catch {
             // Gracefully handle errors without crashing
         }

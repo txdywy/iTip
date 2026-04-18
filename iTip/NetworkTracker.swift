@@ -8,15 +8,9 @@ final class NetworkTracker {
     private let store: UsageStoreProtocol
     private var timer: DispatchSourceTimer?
     private let queue = DispatchQueue(label: "com.example.iTip.networkTracker", qos: .utility)
-    /// Separate queue for the timeout safety net so it can fire even while
-    /// `process.waitUntilExit()` blocks the sampling queue.
-    private let timeoutQueue = DispatchQueue(label: "com.example.iTip.networkTracker.timeout", qos: .utility)
 
     /// Accumulated bytes per bundle ID (in-memory, flushed periodically).
     private var accumulatedBytes: [String: Int64] = [:]
-
-    /// Maximum time to wait for a single nettop sample before terminating it.
-    private static let sampleTimeout: TimeInterval = 8.0
 
     init(store: UsageStoreProtocol) {
         self.store = store
@@ -42,9 +36,13 @@ final class NetworkTracker {
     // MARK: - Private
 
     private func sample() {
-        guard let output = runNettop() else { return }
+        let output = ProcessRunner.run(
+            executableURL: URL(fileURLWithPath: "/usr/bin/nettop"),
+            arguments: ["-P", "-L", "1", "-x", "-n"]
+        )
+        guard let output else { return }
         let perPID = parseNettop(output)
-        let perBundle = mapToBundleIDs(perPID)
+        let perBundle = ProcessUtils.mapToBundleIDs(perPID)
 
         for (bundleID, bytes) in perBundle where bytes > 0 {
             accumulatedBytes[bundleID, default: 0] += bytes
@@ -75,36 +73,6 @@ final class NetworkTracker {
         }
     }
 
-    private func runNettop() -> String? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/nettop")
-        process.arguments = ["-P", "-L", "1", "-x", "-n"]
-
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-
-        do {
-            try process.run()
-
-            // Schedule a safety-net termination in case nettop hangs
-            let terminationWork = DispatchWorkItem {
-                if process.isRunning { process.terminate() }
-            }
-            timeoutQueue.asyncAfter(deadline: .now() + Self.sampleTimeout, execute: terminationWork)
-
-            process.waitUntilExit()
-            terminationWork.cancel()
-
-            guard process.terminationStatus == 0 else { return nil }
-
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            return String(data: data, encoding: .utf8)
-        } catch {
-            return nil
-        }
-    }
-
     /// Parse nettop CSV output into [PID: bytesIn].
     private func parseNettop(_ output: String) -> [pid_t: Int64] {
         var result: [pid_t: Int64] = [:]
@@ -123,27 +91,6 @@ final class NetworkTracker {
             let bytesIn = Int64(cols[4].trimmingCharacters(in: .whitespaces)) ?? 0
             if bytesIn > 0 {
                 result[pid] = bytesIn
-            }
-        }
-        return result
-    }
-
-    /// Map PIDs to bundle identifiers using NSRunningApplication.
-    private func mapToBundleIDs(_ perPID: [pid_t: Int64]) -> [String: Int64] {
-        var result: [String: Int64] = [:]
-        let runningApps = NSWorkspace.shared.runningApplications
-
-        // Build PID → bundleID lookup
-        var pidToBundleID: [pid_t: String] = [:]
-        for app in runningApps {
-            if let bid = app.bundleIdentifier {
-                pidToBundleID[app.processIdentifier] = bid
-            }
-        }
-
-        for (pid, bytes) in perPID {
-            if let bundleID = pidToBundleID[pid] {
-                result[bundleID, default: 0] += bytes
             }
         }
         return result
