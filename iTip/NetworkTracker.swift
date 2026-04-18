@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import os.log
 
 /// Periodically samples per-process network usage via `nettop` and accumulates
 /// download bytes per bundle identifier into the UsageStore.
@@ -8,6 +9,8 @@ final class NetworkTracker {
     private let store: UsageStoreProtocol
     private var timer: DispatchSourceTimer?
     private let queue = DispatchQueue(label: "com.example.iTip.networkTracker", qos: .utility)
+
+    private static let maxAccumulatedEntries = 500
 
     /// Accumulated bytes per bundle ID (in-memory, flushed periodically).
     private var accumulatedBytes: [String: Int64] = [:]
@@ -51,7 +54,7 @@ final class NetworkTracker {
         flush()
     }
 
-    private func flush() {
+    func flush() {
         guard !accumulatedBytes.isEmpty else { return }
         let snapshot = accumulatedBytes
         accumulatedBytes.removeAll()
@@ -66,9 +69,13 @@ final class NetworkTracker {
                 }
             }
         } catch {
-            // Put bytes back if save failed
-            for (k, v) in snapshot {
-                accumulatedBytes[k, default: 0] += v
+            os_log("NetworkTracker: flush failed: %{public}@", type: .error, error.localizedDescription)
+            if accumulatedBytes.count < Self.maxAccumulatedEntries {
+                for (k, v) in snapshot {
+                    accumulatedBytes[k, default: 0] += v
+                }
+            } else {
+                os_log("NetworkTracker: accumulated entries exceeded cap (%d), dropping data", type: .fault, Self.maxAccumulatedEntries)
             }
         }
     }

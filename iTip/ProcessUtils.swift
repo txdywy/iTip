@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import os.log
 
 /// Runs a subprocess with an optional timeout, returning its stdout.
 struct ProcessRunner {
@@ -19,6 +20,7 @@ struct ProcessRunner {
         process.arguments = arguments
 
         let pipe = Pipe()
+        defer { try? pipe.fileHandleForReading.close() }
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
 
@@ -32,14 +34,18 @@ struct ProcessRunner {
             }
             DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout, execute: terminationWork)
 
+            // Read stdout BEFORE waitUntilExit to avoid pipe buffer deadlock
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+
             process.waitUntilExit()
             terminationWork.cancel()
 
             guard process.terminationStatus == 0 else { return nil }
 
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
             return String(data: data, encoding: .utf8)
         } catch {
+            os_log("ProcessRunner: failed to launch %{public}@: %{public}@", type: .error,
+                   executableURL.path, error.localizedDescription)
             return nil
         }
     }
