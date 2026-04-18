@@ -9,6 +9,12 @@ final class MenuPresenter {
         return f
     }()
 
+    // Shared tab stop positions for header and data rows
+    private static let col1: CGFloat = 150  // Count
+    private static let col2: CGFloat = 210  // Time
+    private static let col3: CGFloat = 280  // Traffic
+    private static let col4: CGFloat = 360  // Last
+
     /// Cache app icons to avoid repeated disk lookups.
     private var iconCache: [String: NSImage] = [:]
     /// Cache app URL resolution results.
@@ -20,7 +26,6 @@ final class MenuPresenter {
     var menuItemAction: Selector?
 
     /// Closure that returns whether activation monitoring is currently active.
-    /// When this returns `false`, a permission warning is shown in the menu.
     var isMonitoringAvailable: () -> Bool = { true }
 
     init(store: UsageStoreProtocol, ranker: UsageRanker = UsageRanker()) {
@@ -31,7 +36,6 @@ final class MenuPresenter {
     func buildMenu() -> NSMenu {
         let menu = NSMenu()
 
-        // Show permission warning if monitoring is not active
         if !isMonitoringAvailable() {
             let warningItem = NSMenuItem(title: "⚠ Monitoring unavailable — check permissions", action: nil, keyEquivalent: "")
             warningItem.isEnabled = false
@@ -67,7 +71,6 @@ final class MenuPresenter {
             }
         }
 
-        // Clean unresolvable records from the store (async to avoid blocking menu)
         if !removedIdentifiers.isEmpty {
             let cleaned = records.filter { !removedIdentifiers.contains($0.bundleIdentifier) }
             DispatchQueue.global(qos: .utility).async { [store] in
@@ -80,10 +83,13 @@ final class MenuPresenter {
             noAppsItem.isEnabled = false
             menu.addItem(noAppsItem)
         } else {
-            // Header row
+            // Header row with placeholder icon for alignment
             let header = NSMenuItem(title: "", action: nil, keyEquivalent: "")
             header.attributedTitle = MenuPresenter.headerTitle()
             header.isEnabled = false
+            // Use a transparent 16x16 image to match data row icon indent
+            let placeholder = NSImage(size: NSSize(width: 16, height: 16))
+            header.image = placeholder
             menu.addItem(header)
             menu.addItem(NSMenuItem.separator())
 
@@ -120,23 +126,24 @@ final class MenuPresenter {
         return icon
     }
 
-    // MARK: - Attributed Title
+    // MARK: - Shared Paragraph Style
+
+    private static func sharedParagraphStyle() -> NSMutableParagraphStyle {
+        let ps = NSMutableParagraphStyle()
+        ps.tabStops = [
+            NSTextTab(textAlignment: .right, location: col1),
+            NSTextTab(textAlignment: .right, location: col2),
+            NSTextTab(textAlignment: .right, location: col3),
+            NSTextTab(textAlignment: .right, location: col4),
+        ]
+        return ps
+    }
+
+    // MARK: - Header
 
     private static func headerTitle() -> NSAttributedString {
-        let tab1: CGFloat = 160
-        let tab2: CGFloat = 220
-        let tab3: CGFloat = 290
-        let tab4: CGFloat = 360
-
-        let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.tabStops = [
-            NSTextTab(textAlignment: .right, location: tab1),
-            NSTextTab(textAlignment: .right, location: tab2),
-            NSTextTab(textAlignment: .right, location: tab3),
-            NSTextTab(textAlignment: .right, location: tab4),
-        ]
-
-        let font = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium)
+        let paragraphStyle = sharedParagraphStyle()
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
         let color = NSColor.tertiaryLabelColor
         let attrs: [NSAttributedString.Key: Any] = [
             .font: font,
@@ -153,25 +160,15 @@ final class MenuPresenter {
         return result
     }
 
+    // MARK: - Data Row
+
     private static func attributedTitle(for record: UsageRecord) -> NSAttributedString {
         let relativeTime = relativeFormatter.localizedString(for: record.lastActivatedAt, relativeTo: Date())
         let duration = formatDuration(record.totalActiveSeconds)
         let countStr = "×\(record.activationCount)"
         let dlStr = "↓\(formatBytes(record.totalBytesDownloaded))"
 
-        let tab1: CGFloat = 160
-        let tab2: CGFloat = 220
-        let tab3: CGFloat = 290
-        let tab4: CGFloat = 360
-
-        let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.tabStops = [
-            NSTextTab(textAlignment: .right, location: tab1),
-            NSTextTab(textAlignment: .right, location: tab2),
-            NSTextTab(textAlignment: .right, location: tab3),
-            NSTextTab(textAlignment: .right, location: tab4),
-        ]
-
+        let paragraphStyle = sharedParagraphStyle()
         let nameFont = NSFont.menuFont(ofSize: 13)
         let statsFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
         let dimColor = NSColor.secondaryLabelColor
@@ -210,7 +207,7 @@ final class MenuPresenter {
         return result
     }
 
-    // MARK: - Duration Formatting
+    // MARK: - Formatting
 
     static func formatDuration(_ seconds: TimeInterval) -> String {
         let totalSeconds = Int(seconds)
@@ -223,7 +220,6 @@ final class MenuPresenter {
         return "⏱\(minutes)m"
     }
 
-    /// Format bytes into human-readable string: B, KB, MB, GB.
     static func formatBytes(_ bytes: Int64) -> String {
         if bytes < 1024 { return "\(bytes)B" }
         let kb = Double(bytes) / 1024
