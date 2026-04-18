@@ -119,16 +119,19 @@ final class MenuPresenter {
         let relativeTime = relativeFormatter.localizedString(for: record.lastActivatedAt, relativeTo: Date())
         let duration = formatDuration(record.totalActiveSeconds)
         let countStr = "×\(record.activationCount)"
+        let dlStr = "↓\(formatBytes(record.totalBytesDownloaded))"
 
         let tab1: CGFloat = 160
         let tab2: CGFloat = 220
         let tab3: CGFloat = 290
+        let tab4: CGFloat = 360
 
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.tabStops = [
             NSTextTab(textAlignment: .right, location: tab1),
             NSTextTab(textAlignment: .right, location: tab2),
             NSTextTab(textAlignment: .right, location: tab3),
+            NSTextTab(textAlignment: .right, location: tab4),
         ]
 
         let nameFont = NSFont.menuFont(ofSize: 13)
@@ -154,6 +157,12 @@ final class MenuPresenter {
             .paragraphStyle: paragraphStyle,
         ]))
 
+        result.append(NSAttributedString(string: "\t\(dlStr)", attributes: [
+            .font: statsFont,
+            .foregroundColor: dimColor,
+            .paragraphStyle: paragraphStyle,
+        ]))
+
         result.append(NSAttributedString(string: "\t\(relativeTime)", attributes: [
             .font: statsFont,
             .foregroundColor: dimColor,
@@ -174,5 +183,16 @@ final class MenuPresenter {
             return "⏱\(hours)h\(minutes)m"
         }
         return "⏱\(minutes)m"
+    }
+
+    /// Format bytes into human-readable string: B, KB, MB, GB.
+    static func formatBytes(_ bytes: Int64) -> String {
+        if bytes < 1024 { return "\(bytes)B" }
+        let kb = Double(bytes) / 1024
+        if kb < 1024 { return String(format: "%.0fKB", kb) }
+        let mb = kb / 1024
+        if mb < 1024 { return String(format: "%.1fMB", mb) }
+        let gb = mb / 1024
+        return String(format: "%.2fGB", gb)
     }
 }

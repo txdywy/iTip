@@ -3,6 +3,7 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var statusBarController: StatusBarController?
     private var activationMonitor: ActivationMonitor?
+    private var networkTracker: NetworkTracker?
     private let appLauncher = AppLauncher()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -11,6 +12,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         activationMonitor = ActivationMonitor(store: store)
         activationMonitor?.startMonitoring()
+
+        networkTracker = NetworkTracker(store: store)
+        networkTracker?.start(interval: 10.0)
 
         let menuPresenter = MenuPresenter(store: store, ranker: ranker)
         menuPresenter.menuItemTarget = self
@@ -31,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         activationMonitor?.stopMonitoring()
+        networkTracker?.stop()
     }
 
     // MARK: - Menu Item Actions
