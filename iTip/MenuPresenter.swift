@@ -37,6 +37,8 @@ final class MenuPresenter {
     private var urlCache: [String: URL?] = [:]
 
     /// Cached records to avoid hitting the store on every menu open.
+    /// Protected by `recordsCacheLock` so notifications from background queues invalidate before the next `buildMenu()` returns on the main thread.
+    private let recordsCacheLock = NSLock()
     private var cachedRecords: [UsageRecord]?
     /// Observer for store-change notifications.
     private var storeObserver: NSObjectProtocol?
@@ -59,9 +61,10 @@ final class MenuPresenter {
             object: nil,
             queue: nil
         ) { [weak self] _ in
-            DispatchQueue.main.async {
-                self?.cachedRecords = nil
-            }
+            guard let self = self else { return }
+            self.recordsCacheLock.lock()
+            self.cachedRecords = nil
+            self.recordsCacheLock.unlock()
         }
     }
 
@@ -84,11 +87,17 @@ final class MenuPresenter {
 
         // Use cached records if available, otherwise load from store
         let records: [UsageRecord]
+        recordsCacheLock.lock()
         if let cached = cachedRecords {
+            recordsCacheLock.unlock()
             records = cached
         } else {
-            records = (try? store.load()) ?? []
-            cachedRecords = records
+            recordsCacheLock.unlock()
+            let loaded = (try? store.load()) ?? []
+            recordsCacheLock.lock()
+            cachedRecords = loaded
+            recordsCacheLock.unlock()
+            records = loaded
         }
 
         let ranked = ranker.rank(records)
@@ -117,7 +126,9 @@ final class MenuPresenter {
 
         if !removedIdentifiers.isEmpty {
             let cleaned = records.filter { !removedIdentifiers.contains($0.bundleIdentifier) }
+            recordsCacheLock.lock()
             cachedRecords = cleaned
+            recordsCacheLock.unlock()
             DispatchQueue.global(qos: .utility).async { [store] in
                 try? store.save(cleaned)
             }

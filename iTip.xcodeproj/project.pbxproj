@@ -36,6 +36,7 @@
 		A0000000000000000000002B /* ProcessUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000120 /* ProcessUtils.swift */; };
 		A0000000000000000000002C /* NetworkTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000012C /* NetworkTrackerTests.swift */; };
 		A0000000000000000000002D /* ProcessUtilsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000012D /* ProcessUtilsTests.swift */; };
+		A0000000000000000000002E /* AppLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000012E /* AppLog.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -70,6 +71,7 @@
 		A00000000000000000000120 /* ProcessUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessUtils.swift; sourceTree = "<group>"; };
 		A0000000000000000000012C /* NetworkTrackerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkTrackerTests.swift; sourceTree = "<group>"; };
 		A0000000000000000000012D /* ProcessUtilsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessUtilsTests.swift; sourceTree = "<group>"; };
+		A0000000000000000000012E /* AppLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLog.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -106,6 +108,7 @@
 			sourceTree = "<group>";
 			children = (
 				A00000000000000000000111 /* main.swift */,
+				A0000000000000000000012E /* AppLog.swift */,
 				A00000000000000000000112 /* AppDelegate.swift */,
 				A00000000000000000000113 /* StatusBarController.swift */,
 				A00000000000000000000115 /* UsageRecord.swift */,
@@ -254,6 +257,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A00000000000000000000011 /* main.swift in Sources */,
+				A0000000000000000000002E /* AppLog.swift in Sources */,
 				A00000000000000000000012 /* AppDelegate.swift in Sources */,
 				A00000000000000000000013 /* StatusBarController.swift in Sources */,
 				A00000000000000000000015 /* UsageRecord.swift in Sources */,

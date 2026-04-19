@@ -13,7 +13,8 @@ final class NetworkTracker {
     private static let maxAccumulatedEntries = 500
 
     /// Accumulated bytes per bundle ID (in-memory, flushed periodically).
-    private var accumulatedBytes: [String: Int64] = [:]
+    /// Internal for `@testable` unit tests that inject or assert accumulator state.
+    var accumulatedBytes: [String: Int64] = [:]
 
     init(store: UsageStoreProtocol) {
         self.store = store
