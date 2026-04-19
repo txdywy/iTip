@@ -34,7 +34,9 @@ final class NetworkTracker {
     func stop() {
         timer?.cancel()
         timer = nil
-        flush()
+        queue.sync { [self] in
+            _flush()
+        }
     }
 
     // MARK: - Private
@@ -52,10 +54,11 @@ final class NetworkTracker {
             accumulatedBytes[bundleID, default: 0] += bytes
         }
 
-        flush()
+        _flush()
     }
 
-    func flush() {
+    /// Internal flush — must be called on `queue`.
+    private func _flush() {
         guard !accumulatedBytes.isEmpty else { return }
         let snapshot = accumulatedBytes
         accumulatedBytes.removeAll()
@@ -114,12 +117,19 @@ final class NetworkTracker {
 extension NetworkTracker {
     /// Lets unit tests mutate the in-memory accumulator without invoking `nettop`.
     func testing_withAccumulatedBytes(_ body: (inout [String: Int64]) -> Void) {
-        body(&accumulatedBytes)
+        queue.sync {
+            body(&accumulatedBytes)
+        }
     }
 
     /// Snapshot of the accumulator for assertions after `flush()`.
     func testing_accumulatedBytesSnapshot() -> [String: Int64] {
-        accumulatedBytes
+        queue.sync { accumulatedBytes }
+    }
+
+    /// Thread-safe flush for tests.
+    func testing_flush() {
+        queue.sync { _flush() }
     }
 }
 #endif

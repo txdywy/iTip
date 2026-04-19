@@ -40,7 +40,7 @@ final class NetworkTrackerTests: XCTestCase {
         }
 
         // Trigger flush — should fail and put data back
-        tracker.flush()
+        tracker.testing_flush()
 
         // Data should be retained for retry
         XCTAssertEqual(tracker.testing_accumulatedBytesSnapshot()["com.apple.Safari"], 1024)
@@ -64,7 +64,7 @@ final class NetworkTrackerTests: XCTestCase {
         XCTAssertEqual(tracker.testing_accumulatedBytesSnapshot().count, 501)
 
         // Trigger flush — should fail, and since count exceeds cap, data is dropped
-        tracker.flush()
+        tracker.testing_flush()
 
         // After a failed flush with >500 entries, data should be dropped
         // The flush clears accumulatedBytes first, then on failure checks count
@@ -104,7 +104,7 @@ final class NetworkTrackerTests: XCTestCase {
                 dict["com.test.retained\(i)"] = Int64(i)
             }
         }
-        tracker.flush() // fails, puts 250 entries back
+        tracker.testing_flush() // fails, puts 250 entries back
 
         // Now add more entries to push past the cap
         tracker.testing_withAccumulatedBytes { dict in
@@ -123,7 +123,7 @@ final class NetworkTrackerTests: XCTestCase {
         // Actually the check is: if accumulatedBytes.count < maxAccumulatedEntries
         // At catch time, accumulatedBytes is empty (was cleared), so it's < 500.
         // The put-back adds snapshot entries, making it 510 again.
-        tracker.flush()
+        tracker.testing_flush()
 
         // The code always puts back if the current accumulator count < 500 at catch time.
         // Since removeAll() runs before the try, the count is always 0 at catch.
@@ -143,7 +143,7 @@ final class NetworkTrackerTests: XCTestCase {
         let tracker = NetworkTracker(store: store)
 
         tracker.testing_withAccumulatedBytes { $0 = ["com.apple.Safari": 5000] }
-        tracker.flush()
+        tracker.testing_flush()
 
         XCTAssertTrue(tracker.testing_accumulatedBytesSnapshot().isEmpty, "Successful flush should clear accumulator")
 
@@ -160,7 +160,7 @@ final class NetworkTrackerTests: XCTestCase {
         let tracker = NetworkTracker(store: store)
 
         // accumulatedBytes is empty
-        tracker.flush()
+        tracker.testing_flush()
 
         // updateRecords should not have been called
         XCTAssertEqual(store.updateCallCount, 0)
