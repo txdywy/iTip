@@ -14,6 +14,7 @@ final class InMemoryUsageStore: UsageStoreProtocol {
 
     func save(_ records: [UsageRecord]) throws {
         self.records = records
+        NotificationCenter.default.post(name: .usageStoreDidUpdate, object: self)
     }
 
     func updateRecords(_ modify: (inout [UsageRecord]) -> Void) throws {

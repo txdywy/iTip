@@ -32,17 +32,19 @@ final class NetworkTrackerTests: XCTestCase {
         let tracker = NetworkTracker(store: store)
 
         // Inject data directly into the accumulator
-        tracker.accumulatedBytes = [
-            "com.apple.Safari": 1024,
-            "com.apple.Mail": 2048,
-        ]
+        tracker.testing_withAccumulatedBytes {
+            $0 = [
+                "com.apple.Safari": 1024,
+                "com.apple.Mail": 2048,
+            ]
+        }
 
         // Trigger flush — should fail and put data back
         tracker.flush()
 
         // Data should be retained for retry
-        XCTAssertEqual(tracker.accumulatedBytes["com.apple.Safari"], 1024)
-        XCTAssertEqual(tracker.accumulatedBytes["com.apple.Mail"], 2048)
+        XCTAssertEqual(tracker.testing_accumulatedBytesSnapshot()["com.apple.Safari"], 1024)
+        XCTAssertEqual(tracker.testing_accumulatedBytesSnapshot()["com.apple.Mail"], 2048)
     }
 
     // MARK: - Error Path: data dropped when exceeding cap
@@ -53,11 +55,13 @@ final class NetworkTrackerTests: XCTestCase {
         let tracker = NetworkTracker(store: store)
 
         // Fill accumulator beyond the 500-entry cap
-        for i in 0..<501 {
-            tracker.accumulatedBytes["com.test.app\(i)"] = Int64(i * 100)
+        tracker.testing_withAccumulatedBytes { dict in
+            for i in 0..<501 {
+                dict["com.test.app\(i)"] = Int64(i * 100)
+            }
         }
 
-        XCTAssertEqual(tracker.accumulatedBytes.count, 501)
+        XCTAssertEqual(tracker.testing_accumulatedBytesSnapshot().count, 501)
 
         // Trigger flush — should fail, and since count exceeds cap, data is dropped
         tracker.flush()
@@ -84,7 +88,7 @@ final class NetworkTrackerTests: XCTestCase {
         // accumulatedBytes was cleared, then snapshot (501) was put back because
         // accumulatedBytes.count (0) < 500. So data is retained after first failure.
         // We need accumulatedBytes.count >= 500 BEFORE the put-back attempt.
-        XCTAssertEqual(tracker.accumulatedBytes.count, 501,
+        XCTAssertEqual(tracker.testing_accumulatedBytesSnapshot().count, 501,
                        "Data should be put back on first failure since accumulator was empty")
     }
 
@@ -95,20 +99,24 @@ final class NetworkTrackerTests: XCTestCase {
         let tracker = NetworkTracker(store: store)
 
         // First: fill and fail flush to populate accumulatedBytes with retained data
-        for i in 0..<250 {
-            tracker.accumulatedBytes["com.test.retained\(i)"] = Int64(i)
+        tracker.testing_withAccumulatedBytes { dict in
+            for i in 0..<250 {
+                dict["com.test.retained\(i)"] = Int64(i)
+            }
         }
         tracker.flush() // fails, puts 250 entries back
 
         // Now add more entries to push past the cap
-        for i in 0..<260 {
-            tracker.accumulatedBytes["com.test.new\(i)"] = Int64(i)
+        tracker.testing_withAccumulatedBytes { dict in
+            for i in 0..<260 {
+                dict["com.test.new\(i)"] = Int64(i)
+            }
         }
 
         // accumulatedBytes now has 250 + 260 = 510 entries
-        XCTAssertGreaterThan(tracker.accumulatedBytes.count, 500)
+        XCTAssertGreaterThan(tracker.testing_accumulatedBytesSnapshot().count, 500)
 
-        let countBefore = tracker.accumulatedBytes.count
+        let countBefore = tracker.testing_accumulatedBytesSnapshot().count
 
         // Flush again — snapshot has 510 entries, accumulatedBytes cleared to 0,
         // updateRecords fails, accumulatedBytes.count (0) < 500, so put-back happens.
@@ -121,7 +129,7 @@ final class NetworkTrackerTests: XCTestCase {
         // Since removeAll() runs before the try, the count is always 0 at catch.
         // The cap protection only works if OTHER data was added concurrently.
         // For this single-threaded test, data is always retained.
-        XCTAssertEqual(tracker.accumulatedBytes.count, countBefore,
+        XCTAssertEqual(tracker.testing_accumulatedBytesSnapshot().count, countBefore,
                        "In single-threaded scenario, data is always put back since accumulator is cleared before try")
     }
 
@@ -134,10 +142,10 @@ final class NetworkTrackerTests: XCTestCase {
         ])
         let tracker = NetworkTracker(store: store)
 
-        tracker.accumulatedBytes = ["com.apple.Safari": 5000]
+        tracker.testing_withAccumulatedBytes { $0 = ["com.apple.Safari": 5000] }
         tracker.flush()
 
-        XCTAssertTrue(tracker.accumulatedBytes.isEmpty, "Successful flush should clear accumulator")
+        XCTAssertTrue(tracker.testing_accumulatedBytesSnapshot().isEmpty, "Successful flush should clear accumulator")
 
         // Verify bytes were written to the store
         let records = try! store.load()
