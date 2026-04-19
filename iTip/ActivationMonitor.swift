@@ -10,7 +10,7 @@ final class ActivationMonitor {
     /// Serial queue protecting all mutable state from data races.
     private let syncQueue = DispatchQueue(label: "\(Bundle.main.bundleIdentifier ?? "iTip").activationMonitor")
 
-    private var observer: NSObjectProtocol?
+    private var observers: [NSObjectProtocol] = []
 
     /// In-memory cache of records to avoid disk I/O on every activation.
     private var cachedRecords: [UsageRecord] = []
@@ -49,21 +49,36 @@ final class ActivationMonitor {
         syncQueue.sync {
             saveTimer?.cancel()
             saveTimer = nil
-            if let existing = observer {
-                notificationCenter.removeObserver(existing)
-                observer = nil
-            }
+            for obs in observers { notificationCenter.removeObserver(obs) }
+            observers.removeAll()
 
             populateCache()
 
-            observer = notificationCenter.addObserver(
+            observers.append(notificationCenter.addObserver(
                 forName: NSWorkspace.didActivateApplicationNotification,
                 object: nil,
                 queue: .main
             ) { [weak self] notification in
                 self?.handleActivation(notification)
-            }
-            _isMonitoring = (observer != nil)
+            })
+            
+            observers.append(notificationCenter.addObserver(
+                forName: NSWorkspace.willSleepNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                self?.handleSleep()
+            })
+
+            observers.append(notificationCenter.addObserver(
+                forName: NSWorkspace.didWakeNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                self?.handleWake()
+            })
+
+            _isMonitoring = !observers.isEmpty
 
             let t = DispatchSource.makeTimerSource(queue: syncQueue)
             t.schedule(deadline: .now() + 5.0, repeating: 5.0)
@@ -77,12 +92,16 @@ final class ActivationMonitor {
 
     func stopMonitoring() {
         syncQueue.sync {
-            if let observer = observer {
-                notificationCenter.removeObserver(observer)
-                self.observer = nil
-            }
+            for obs in observers { notificationCenter.removeObserver(obs) }
+            observers.removeAll()
+
             saveTimer?.cancel()
             saveTimer = nil
+            
+            // Capture any accumulated active time before stopping
+            _commitCurrentSession(now: dateProvider())
+            foregroundSince = nil
+
             _flushIfDirty()
             _isMonitoring = false
         }
@@ -130,16 +149,7 @@ final class ActivationMonitor {
 
         let now = dateProvider()
 
-        // Accumulate foreground duration for the previously active app
-        if let prevID = currentForegroundBundleID,
-           let since = foregroundSince,
-           prevID != selfBundleIdentifier,
-           let idx = indexByBundleID[prevID] {
-            let duration = now.timeIntervalSince(since)
-            if duration > 0 {
-                cachedRecords[idx].totalActiveSeconds += duration
-            }
-        }
+        _commitCurrentSession(now: now)
 
         // Update foreground tracking
         currentForegroundBundleID = bundleIdentifier
@@ -224,5 +234,36 @@ final class ActivationMonitor {
 
         let displayName = app.localizedName ?? bundleIdentifier
         recordActivation(bundleIdentifier: bundleIdentifier, displayName: displayName)
+    }
+
+    private func handleSleep() {
+        syncQueue.sync {
+            _commitCurrentSession(now: dateProvider())
+            // Clear tracking so sleep duration is completely ignored
+            foregroundSince = nil
+            _flushIfDirty() // persist everything securely right before sleep
+        }
+    }
+
+    private func handleWake() {
+        syncQueue.sync {
+            // Restore since date so the active app cleanly resumes accumulation.
+            foregroundSince = dateProvider()
+        }
+    }
+
+    private func _commitCurrentSession(now: Date) {
+        guard let currentID = currentForegroundBundleID,
+              let since = foregroundSince,
+              currentID != selfBundleIdentifier,
+              let idx = indexByBundleID[currentID] else {
+            return
+        }
+        
+        let duration = now.timeIntervalSince(since)
+        if duration > 0 {
+            cachedRecords[idx].totalActiveSeconds += duration
+            isDirty = true
+        }
     }
 }
