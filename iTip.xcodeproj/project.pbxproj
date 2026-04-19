@@ -34,6 +34,8 @@
 		A00000000000000000000029 /* NetworkTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000011E /* NetworkTracker.swift */; };
 		A0000000000000000000002A /* MemorySampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000011F /* MemorySampler.swift */; };
 		A0000000000000000000002B /* ProcessUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000120 /* ProcessUtils.swift */; };
+		A0000000000000000000002C /* NetworkTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000012C /* NetworkTrackerTests.swift */; };
+		A0000000000000000000002D /* ProcessUtilsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000012D /* ProcessUtilsTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -66,6 +68,8 @@
 		A0000000000000000000011E /* NetworkTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkTracker.swift; sourceTree = "<group>"; };
 		A0000000000000000000011F /* MemorySampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemorySampler.swift; sourceTree = "<group>"; };
 		A00000000000000000000120 /* ProcessUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessUtils.swift; sourceTree = "<group>"; };
+		A0000000000000000000012C /* NetworkTrackerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkTrackerTests.swift; sourceTree = "<group>"; };
+		A0000000000000000000012D /* ProcessUtilsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessUtilsTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -135,6 +139,8 @@
 				A00000000000000000000129 /* MenuPresenterTests.swift */,
 				A0000000000000000000012A /* AppLauncherTests.swift */,
 				A0000000000000000000012B /* IntegrationTests.swift */,
+				A0000000000000000000012C /* NetworkTrackerTests.swift */,
+				A0000000000000000000012D /* ProcessUtilsTests.swift */,
 			);
 		};
 		A00000000000000000000303 /* Products */ = {
@@ -279,6 +285,8 @@
 				A00000000000000000000023 /* MenuPresenterTests.swift in Sources */,
 				A00000000000000000000025 /* AppLauncherTests.swift in Sources */,
 				A00000000000000000000026 /* IntegrationTests.swift in Sources */,
+				A0000000000000000000002C /* NetworkTrackerTests.swift in Sources */,
+				A0000000000000000000002D /* ProcessUtilsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

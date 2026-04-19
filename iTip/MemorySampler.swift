@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import os.log
 
 /// Periodically samples per-process Resident Set Size (RSS) via `ps` and
 /// updates `residentMemoryBytes` on existing UsageRecords in the store.
@@ -36,7 +37,10 @@ final class MemorySampler {
             executableURL: URL(fileURLWithPath: "/bin/ps"),
             arguments: ["-axo", "pid=,rss="]
         )
-        guard let output else { return }
+        guard let output else {
+            os_log("MemorySampler: failed to run ps command", type: .error)
+            return
+        }
         let perPID = parsePS(output)
         let perBundle = ProcessUtils.mapToBundleIDs(perPID)
 
@@ -52,7 +56,7 @@ final class MemorySampler {
                 }
             }
         } catch {
-            // Silent — will retry next sample
+            os_log("MemorySampler: failed to update records: %{public}@", type: .error, error.localizedDescription)
         }
     }
 

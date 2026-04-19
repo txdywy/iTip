@@ -34,7 +34,6 @@ struct SpotlightSeeder {
         guard let query = MDQueryCreate(kCFAllocatorDefault, queryString, nil, nil) else {
             return []
         }
-
         // Set a batch size limit to avoid long queries
         MDQuerySetMaxCount(query, 50)
 

@@ -99,4 +99,123 @@ final class ActivationMonitorTests: XCTestCase {
         let records = try! store.load()
         XCTAssertEqual(records.count, 0, "Empty bundleIdentifier should be filtered out")
     }
+
+    // MARK: - Concurrency Stress Test
+
+    /// Verify that concurrent calls to recordActivation and flush do not crash.
+    /// The syncQueue inside ActivationMonitor should serialize all access.
+    func testConcurrentRecordActivationAndFlushDoesNotCrash() {
+        let store = InMemoryUsageStore()
+        let monitor = makeMonitor(store: store)
+
+        let iterations = 200
+        let expectation = expectation(description: "All concurrent operations complete")
+        expectation.expectedFulfillmentCount = iterations * 2
+
+        // Spawn concurrent recordActivation calls
+        for i in 0..<iterations {
+            DispatchQueue.global(qos: .userInitiated).async {
+                monitor.recordActivation(
+                    bundleIdentifier: "com.test.app\(i % 10)",
+                    displayName: "App \(i % 10)"
+                )
+                expectation.fulfill()
+            }
+        }
+
+        // Spawn concurrent flush calls
+        for _ in 0..<iterations {
+            DispatchQueue.global(qos: .utility).async {
+                monitor.flush()
+                expectation.fulfill()
+            }
+        }
+
+        wait(for: [expectation], timeout: 10.0)
+
+        // Final flush to persist all pending data
+        monitor.flush()
+
+        let records = try! store.load()
+        // We should have exactly 10 distinct apps (app0..app9)
+        XCTAssertEqual(records.count, 10)
+        // Total activation count across all records should equal iterations
+        let totalActivations = records.reduce(0) { $0 + $1.activationCount }
+        XCTAssertEqual(totalActivations, iterations)
+    }
+
+    // MARK: - Duration Tracking Test
+
+    /// Verify that switching from app A to app B accumulates foreground time on A.
+    func testDurationTrackingAccumulatesForegroundTime() {
+        let store = InMemoryUsageStore()
+        var currentDate = Date(timeIntervalSinceReferenceDate: 700_000_000)
+
+        let monitor = ActivationMonitor(
+            store: store,
+            notificationCenter: NotificationCenter(),
+            dateProvider: { currentDate },
+            selfBundleIdentifier: "com.example.iTip"
+        )
+
+        // Activate app A
+        monitor.recordActivation(bundleIdentifier: "com.apple.Safari", displayName: "Safari")
+
+        // Advance time by 30 seconds, then switch to app B
+        currentDate = currentDate.addingTimeInterval(30)
+        monitor.recordActivation(bundleIdentifier: "com.apple.Finder", displayName: "Finder")
+
+        // Advance time by 15 seconds, then switch to app C
+        currentDate = currentDate.addingTimeInterval(15)
+        monitor.recordActivation(bundleIdentifier: "com.apple.Mail", displayName: "Mail")
+
+        monitor.flush()
+
+        let records = try! store.load()
+        let safari = records.first(where: { $0.bundleIdentifier == "com.apple.Safari" })!
+        let finder = records.first(where: { $0.bundleIdentifier == "com.apple.Finder" })!
+        let mail = records.first(where: { $0.bundleIdentifier == "com.apple.Mail" })!
+
+        // Safari was foreground for 30 seconds (before Finder activated)
+        XCTAssertEqual(safari.totalActiveSeconds, 30, accuracy: 0.01)
+        // Finder was foreground for 15 seconds (before Mail activated)
+        XCTAssertEqual(finder.totalActiveSeconds, 15, accuracy: 0.01)
+        // Mail is still the foreground app, no duration accumulated yet
+        XCTAssertEqual(mail.totalActiveSeconds, 0, accuracy: 0.01)
+    }
+
+    /// Verify that re-activating the same app accumulates total duration correctly.
+    func testDurationTrackingAccumulatesAcrossMultipleActivations() {
+        let store = InMemoryUsageStore()
+        var currentDate = Date(timeIntervalSinceReferenceDate: 700_000_000)
+
+        let monitor = ActivationMonitor(
+            store: store,
+            notificationCenter: NotificationCenter(),
+            dateProvider: { currentDate },
+            selfBundleIdentifier: "com.example.iTip"
+        )
+
+        // A → B → A pattern
+        monitor.recordActivation(bundleIdentifier: "com.apple.Safari", displayName: "Safari")
+        currentDate = currentDate.addingTimeInterval(20)
+
+        monitor.recordActivation(bundleIdentifier: "com.apple.Finder", displayName: "Finder")
+        currentDate = currentDate.addingTimeInterval(10)
+
+        monitor.recordActivation(bundleIdentifier: "com.apple.Safari", displayName: "Safari")
+        currentDate = currentDate.addingTimeInterval(5)
+
+        // Switch away from Safari to trigger duration accumulation
+        monitor.recordActivation(bundleIdentifier: "com.apple.Finder", displayName: "Finder")
+
+        monitor.flush()
+
+        let records = try! store.load()
+        let safari = records.first(where: { $0.bundleIdentifier == "com.apple.Safari" })!
+
+        // Safari: 20s (first stint) + 5s (second stint) = 25s
+        XCTAssertEqual(safari.totalActiveSeconds, 25, accuracy: 0.01)
+        XCTAssertEqual(safari.activationCount, 2)
+    }
 }

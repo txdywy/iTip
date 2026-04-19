@@ -29,6 +29,8 @@ final class MenuPresenter {
         return ps
     }()
 
+    private static let maxCacheSize = 50
+
     /// Cache app icons to avoid repeated disk lookups.
     private var iconCache: [String: NSImage] = [:]
     /// Cache app URL resolution results.
@@ -55,9 +57,11 @@ final class MenuPresenter {
         storeObserver = NotificationCenter.default.addObserver(
             forName: .usageStoreDidUpdate,
             object: nil,
-            queue: .main
+            queue: nil
         ) { [weak self] _ in
-            self?.cachedRecords = nil
+            DispatchQueue.main.async {
+                self?.cachedRecords = nil
+            }
         }
     }
 
@@ -68,6 +72,7 @@ final class MenuPresenter {
     }
 
     func buildMenu() -> NSMenu {
+        dispatchPrecondition(condition: .onQueue(.main))
         let menu = NSMenu()
 
         if !isMonitoringAvailable() {
@@ -97,6 +102,9 @@ final class MenuPresenter {
                 appURL = cached
             } else {
                 appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: record.bundleIdentifier)
+                if urlCache.count >= Self.maxCacheSize {
+                    urlCache.removeAll(keepingCapacity: true)
+                }
                 urlCache[record.bundleIdentifier] = appURL
             }
 
@@ -159,6 +167,9 @@ final class MenuPresenter {
         }
         let icon = NSWorkspace.shared.icon(forFile: appURL.path)
         icon.size = NSSize(width: 16, height: 16)
+        if iconCache.count >= Self.maxCacheSize {
+            iconCache.removeAll(keepingCapacity: true)
+        }
         iconCache[bundleIdentifier] = icon
         return icon
     }

@@ -1,0 +1,284 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1776397978692,
+  "projectRoot": "/Users/yiwei/iTip",
+  "techStack": {
+    "languages": [],
+    "frameworks": [],
+    "packageManager": null,
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "docs"
+    ],
+    "gitBranches": null
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 0,
+      "lastAccessed": 1776397978683,
+      "keyFiles": []
+    },
+    "iTip": {
+      "path": "iTip",
+      "purpose": null,
+      "fileCount": 13,
+      "lastAccessed": 1776397978683,
+      "keyFiles": [
+        "ActivationMonitor.swift",
+        "AppDelegate.swift",
+        "AppIcon.icns",
+        "AppLauncher.swift",
+        "Info.plist"
+      ]
+    },
+    "iTip.xcodeproj": {
+      "path": "iTip.xcodeproj",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1776397978683,
+      "keyFiles": [
+        "project.pbxproj"
+      ]
+    },
+    "iTipTests": {
+      "path": "iTipTests",
+      "purpose": null,
+      "fileCount": 11,
+      "lastAccessed": 1776397978683,
+      "keyFiles": [
+        "ActivationMonitorPropertyTests.swift",
+        "ActivationMonitorTests.swift",
+        "AppLauncherTests.swift",
+        "InMemoryUsageStore.swift",
+        "IntegrationTests.swift"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "iTip/AppDelegate.swift",
+      "accessCount": 15,
+      "lastAccessed": 1776432116606,
+      "type": "file"
+    },
+    {
+      "path": "iTip.xcodeproj/project.pbxproj",
+      "accessCount": 14,
+      "lastAccessed": 1776432267161,
+      "type": "file"
+    },
+    {
+      "path": "iTip/MenuPresenter.swift",
+      "accessCount": 14,
+      "lastAccessed": 1776441620637,
+      "type": "file"
+    },
+    {
+      "path": "iTip/NetworkMonitor.swift",
+      "accessCount": 11,
+      "lastAccessed": 1776442219974,
+      "type": "file"
+    },
+    {
+      "path": "iTip/StatusBarController.swift",
+      "accessCount": 9,
+      "lastAccessed": 1776441644161,
+      "type": "file"
+    },
+    {
+      "path": "iTipTests/IntegrationTests.swift",
+      "accessCount": 7,
+      "lastAccessed": 1776431721966,
+      "type": "file"
+    },
+    {
+      "path": "iTipTests/MenuPresenterTests.swift",
+      "accessCount": 6,
+      "lastAccessed": 1776431655117,
+      "type": "file"
+    },
+    {
+      "path": "iTip/ActivationMonitor.swift",
+      "accessCount": 6,
+      "lastAccessed": 1776442225168,
+      "type": "file"
+    },
+    {
+      "path": "",
+      "accessCount": 5,
+      "lastAccessed": 1776322321594,
+      "type": "directory"
+    },
+    {
+      "path": "iTip/main.swift",
+      "accessCount": 5,
+      "lastAccessed": 1776347323010,
+      "type": "file"
+    },
+    {
+      "path": "iTipTests/StatusBarControllerTests.swift",
+      "accessCount": 5,
+      "lastAccessed": 1776347334067,
+      "type": "file"
+    },
+    {
+      "path": ".worktrees/macos-menu-bar-app",
+      "accessCount": 4,
+      "lastAccessed": 1776322372182,
+      "type": "directory"
+    },
+    {
+      "path": "docs/superpowers/specs/2026-04-16-macos-menu-bar-app-design.md",
+      "accessCount": 3,
+      "lastAccessed": 1776308012638,
+      "type": "file"
+    },
+    {
+      "path": "iTip/AppLauncher.swift",
+      "accessCount": 3,
+      "lastAccessed": 1776345023318,
+      "type": "file"
+    },
+    {
+      "path": "iTipTests/AppLauncherTests.swift",
+      "accessCount": 3,
+      "lastAccessed": 1776345023371,
+      "type": "file"
+    },
+    {
+      "path": "README.md",
+      "accessCount": 2,
+      "lastAccessed": 1776308012581,
+      "type": "file"
+    },
+    {
+      "path": "iTip/UsageRecord.swift",
+      "accessCount": 2,
+      "lastAccessed": 1776431350278,
+      "type": "file"
+    },
+    {
+      "path": "iTipTests/ActivationMonitorTests.swift",
+      "accessCount": 2,
+      "lastAccessed": 1776431485791,
+      "type": "file"
+    },
+    {
+      "path": "iTip/ProcessResolver.swift",
+      "accessCount": 2,
+      "lastAccessed": 1776432211916,
+      "type": "file"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-04-16-macos-menu-bar-app.md",
+      "accessCount": 1,
+      "lastAccessed": 1776308067402,
+      "type": "file"
+    },
+    {
+      "path": ".worktrees/macos-menu-bar-app/iTip/main.swift",
+      "accessCount": 1,
+      "lastAccessed": 1776322354026,
+      "type": "file"
+    },
+    {
+      "path": ".worktrees/macos-menu-bar-app/iTip/Info.plist",
+      "accessCount": 1,
+      "lastAccessed": 1776322354191,
+      "type": "file"
+    },
+    {
+      "path": ".worktrees/macos-menu-bar-app/iTipTests/StatusBarControllerTests.swift",
+      "accessCount": 1,
+      "lastAccessed": 1776322354235,
+      "type": "file"
+    },
+    {
+      "path": ".worktrees/macos-menu-bar-app/iTip/StatusBarController.swift",
+      "accessCount": 1,
+      "lastAccessed": 1776322354256,
+      "type": "file"
+    },
+    {
+      "path": ".worktrees/macos-menu-bar-app/iTip/AppDelegate.swift",
+      "accessCount": 1,
+      "lastAccessed": 1776322354296,
+      "type": "file"
+    },
+    {
+      "path": ".worktrees/macos-menu-bar-app/iTip.xcodeproj/project.pbxproj",
+      "accessCount": 1,
+      "lastAccessed": 1776322354311,
+      "type": "file"
+    },
+    {
+      "path": ".worktrees/macos-menu-bar-app/README.md",
+      "accessCount": 1,
+      "lastAccessed": 1776322354367,
+      "type": "file"
+    },
+    {
+      "path": ".worktrees/macos-menu-bar-app/iTip.xcodeproj/xcshareddata/xcschemes/iTip.xcscheme",
+      "accessCount": 1,
+      "lastAccessed": 1776322360268,
+      "type": "file"
+    },
+    {
+      "path": "iTip/Info.plist",
+      "accessCount": 1,
+      "lastAccessed": 1776397999549,
+      "type": "file"
+    },
+    {
+      "path": "iTip",
+      "accessCount": 1,
+      "lastAccessed": 1776418294401,
+      "type": "directory"
+    },
+    {
+      "path": "iTip/UsageStore.swift",
+      "accessCount": 1,
+      "lastAccessed": 1776431103814,
+      "type": "file"
+    },
+    {
+      "path": "iTip/UsageRanker.swift",
+      "accessCount": 1,
+      "lastAccessed": 1776431117783,
+      "type": "file"
+    },
+    {
+      "path": "iTip/UsageStoreProtocol.swift",
+      "accessCount": 1,
+      "lastAccessed": 1776431158417,
+      "type": "file"
+    },
+    {
+      "path": "iTipTests/InMemoryUsageStore.swift",
+      "accessCount": 1,
+      "lastAccessed": 1776431238449,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

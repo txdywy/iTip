@@ -48,17 +48,56 @@ final class UsageStoreTests: XCTestCase {
         XCTAssertEqual(loaded, records)
     }
 
-    // MARK: - Requirements 3.5: Corrupted JSON → throws error (preserves file for recovery)
+    // MARK: - Requirements 3.5: Corrupted JSON → recovery
 
-    func testLoadThrowsWhenFileContainsCorruptedJSON() throws {
+    /// UsageStore now recovers from corrupt files: returns [] and creates .corrupt backup.
+    func testLoadRecoversFromCorruptedJSON() throws {
         let corruptedData = Data("not valid json {{{".utf8)
         try corruptedData.write(to: storageURL)
 
         let store = UsageStore(storageURL: storageURL)
-        XCTAssertThrowsError(try store.load()) { error in
-            // Verify it's a decoding error, not silently swallowed
-            XCTAssertTrue(error is DecodingError)
-        }
+        let records = try store.load()
+
+        // Should return empty array, not throw
+        XCTAssertEqual(records, [])
+
+        // A .corrupt backup should have been created
+        let backupURL = storageURL.appendingPathExtension("corrupt")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: backupURL.path),
+                      "A .corrupt backup file should be created")
+
+        // The backup should contain the original corrupt data
+        let backupData = try Data(contentsOf: backupURL)
+        XCTAssertEqual(backupData, corruptedData)
+    }
+
+    // MARK: - Corrupt recovery: subsequent saves work
+
+    /// After recovering from corruption, the store should save and load normally.
+    func testSaveWorksAfterCorruptRecovery() throws {
+        // Write corrupt data
+        let corruptedData = Data("{{invalid}}".utf8)
+        try corruptedData.write(to: storageURL)
+
+        let store = UsageStore(storageURL: storageURL)
+
+        // Load triggers recovery
+        let recovered = try store.load()
+        XCTAssertEqual(recovered, [])
+
+        // Now save new data
+        let newRecords = [
+            UsageRecord(bundleIdentifier: "com.apple.Safari",
+                        displayName: "Safari",
+                        lastActivatedAt: Date(timeIntervalSinceReferenceDate: 700000000),
+                        activationCount: 3),
+        ]
+        try store.save(newRecords)
+
+        // Create a fresh store instance to bypass cache and verify disk persistence
+        let freshStore = UsageStore(storageURL: storageURL)
+        let loaded = try freshStore.load()
+        XCTAssertEqual(loaded, newRecords)
     }
 
     // MARK: - Requirements 3.2: Atomic write does not corrupt existing data
