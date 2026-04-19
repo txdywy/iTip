@@ -14,11 +14,12 @@ final class StatusBarControllerTests: XCTestCase {
     func testStatusBarControllerRemovesStatusItemOnDeinit() async {
         let removalSpy = RemovalSpy()
 
-        var controller: StatusBarController? = StatusBarController(
-            applyTitle: { _ in },
-            removeStatusItem: removalSpy.record
-        )
-        controller = nil
+        do {
+            _ = StatusBarController(
+                applyTitle: { _ in },
+                removeStatusItem: removalSpy.record
+            )
+        }
 
         XCTAssertEqual(removalSpy.removalCount, 1)
     }

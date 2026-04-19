@@ -13,8 +13,7 @@ final class NetworkTracker {
     private static let maxAccumulatedEntries = 500
 
     /// Accumulated bytes per bundle ID (in-memory, flushed periodically).
-    /// Internal for `@testable` unit tests that inject or assert accumulator state.
-    var accumulatedBytes: [String: Int64] = [:]
+    private var accumulatedBytes: [String: Int64] = [:]
 
     init(store: UsageStoreProtocol) {
         self.store = store
@@ -110,3 +109,17 @@ final class NetworkTracker {
         return result
     }
 }
+
+#if DEBUG
+extension NetworkTracker {
+    /// Lets unit tests mutate the in-memory accumulator without invoking `nettop`.
+    func testing_withAccumulatedBytes(_ body: (inout [String: Int64]) -> Void) {
+        body(&accumulatedBytes)
+    }
+
+    /// Snapshot of the accumulator for assertions after `flush()`.
+    func testing_accumulatedBytesSnapshot() -> [String: Int64] {
+        accumulatedBytes
+    }
+}
+#endif
