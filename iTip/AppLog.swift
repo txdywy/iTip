@@ -10,4 +10,5 @@ enum AppLog {
     static let networkTracker = OSLog(subsystem: subsystem, category: "NetworkTracker")
     static let memorySampler = OSLog(subsystem: subsystem, category: "MemorySampler")
     static let spotlightSeeder = OSLog(subsystem: subsystem, category: "SpotlightSeeder")
+    static let storageSampler = OSLog(subsystem: subsystem, category: "StorageSampler")
 }

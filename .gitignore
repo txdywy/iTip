@@ -11,6 +11,7 @@ DerivedData/
 
 # Artifacts
 *.zip
+git_diff.txt
 
 # Tool directories
 .worktrees/

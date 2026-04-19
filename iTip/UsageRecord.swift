@@ -11,6 +11,8 @@ struct UsageRecord: Codable, Equatable, Sendable {
     var totalBytesDownloaded: Int64
     /// Latest sampled Resident Set Size (RSS) in bytes.
     var residentMemoryBytes: Int64
+    /// Allocated disk storage size for the application bundle.
+    var diskStorageBytes: Int64
 
     /// Backward-compatible decoding: defaults new fields to 0 if missing.
     init(from decoder: Decoder) throws {
@@ -22,9 +24,10 @@ struct UsageRecord: Codable, Equatable, Sendable {
         totalActiveSeconds = try container.decodeIfPresent(TimeInterval.self, forKey: .totalActiveSeconds) ?? 0
         totalBytesDownloaded = try container.decodeIfPresent(Int64.self, forKey: .totalBytesDownloaded) ?? 0
         residentMemoryBytes = try container.decodeIfPresent(Int64.self, forKey: .residentMemoryBytes) ?? 0
+        diskStorageBytes = try container.decodeIfPresent(Int64.self, forKey: .diskStorageBytes) ?? 0
     }
 
-    init(bundleIdentifier: String, displayName: String, lastActivatedAt: Date, activationCount: Int, totalActiveSeconds: TimeInterval = 0, totalBytesDownloaded: Int64 = 0, residentMemoryBytes: Int64 = 0) {
+    init(bundleIdentifier: String, displayName: String, lastActivatedAt: Date, activationCount: Int, totalActiveSeconds: TimeInterval = 0, totalBytesDownloaded: Int64 = 0, residentMemoryBytes: Int64 = 0, diskStorageBytes: Int64 = 0) {
         self.bundleIdentifier = bundleIdentifier
         self.displayName = displayName
         self.lastActivatedAt = lastActivatedAt
@@ -32,5 +35,6 @@ struct UsageRecord: Codable, Equatable, Sendable {
         self.totalActiveSeconds = totalActiveSeconds
         self.totalBytesDownloaded = totalBytesDownloaded
         self.residentMemoryBytes = residentMemoryBytes
+        self.diskStorageBytes = diskStorageBytes
     }
 }

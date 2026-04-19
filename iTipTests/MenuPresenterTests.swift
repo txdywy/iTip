@@ -123,4 +123,32 @@ final class MenuPresenterTests: XCTestCase {
         let title = menu.items[2].attributedTitle?.string ?? ""
         XCTAssertTrue(title.contains("256M"), "Menu item should contain memory value, got: \(title)")
     }
+
+    // MARK: - Disk formatting
+
+    func testFormatDiskUsesAdaptiveUnits() {
+        XCTAssertEqual(MenuPresenter.formatDisk(0), "—")
+        XCTAssertEqual(MenuPresenter.formatDisk(-1), "—")
+        XCTAssertEqual(MenuPresenter.formatDisk(500 * 1024), "💾<1M")  // 500KB
+        XCTAssertEqual(MenuPresenter.formatDisk(50 * 1024 * 1024), "💾50M")  // 50MB
+        XCTAssertEqual(MenuPresenter.formatDisk(1500 * 1024 * 1024), "💾1.5G")  // 1.5GB
+    }
+
+    // MARK: - Disk column appears in menu items
+
+    func testDiskColumnAppearsInMenuItemTitle() {
+        let now = Date()
+        let records = [
+            UsageRecord(bundleIdentifier: "com.apple.Safari", displayName: "Safari",
+                        lastActivatedAt: now, activationCount: 1,
+                        diskStorageBytes: 800 * 1024 * 1024),  // 800MB
+        ]
+        let store = InMemoryUsageStore(records: records)
+        let presenter = MenuPresenter(store: store)
+        let menu = presenter.buildMenu()
+
+        // App item at index 2 (after header + separator)
+        let title = menu.items[2].attributedTitle?.string ?? ""
+        XCTAssertTrue(title.contains("💾800M"), "Menu item should contain disk value, got: \(title)")
+    }
 }

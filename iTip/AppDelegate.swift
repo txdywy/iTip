@@ -5,6 +5,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var activationMonitor: ActivationMonitor?
     private var networkTracker: NetworkTracker?
     private var memorySampler: MemorySampler?
+    private var storageSampler: StorageSampler?
     private let appLauncher = AppLauncher()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -19,6 +20,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         memorySampler = MemorySampler(store: store)
         memorySampler?.start(interval: 10.0)
+
+        storageSampler = StorageSampler(store: store)
+        storageSampler?.start(interval: 300.0) // 5 minutes
 
         let menuPresenter = MenuPresenter(store: store, ranker: ranker)
         menuPresenter.menuItemTarget = self
@@ -46,6 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         activationMonitor?.stopMonitoring()
         networkTracker?.stop()
         memorySampler?.stop()
+        storageSampler?.stop()
     }
 
     // MARK: - Menu Item Actions
