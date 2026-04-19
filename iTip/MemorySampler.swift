@@ -8,7 +8,7 @@ final class MemorySampler {
 
     private let store: UsageStoreProtocol
     private var timer: DispatchSourceTimer?
-    private let queue = DispatchQueue(label: "com.example.iTip.memorySampler", qos: .utility)
+    private let queue = DispatchQueue(label: "\(Bundle.main.bundleIdentifier ?? "iTip").memorySampler", qos: .utility)
 
     init(store: UsageStoreProtocol) {
         self.store = store
@@ -16,6 +16,7 @@ final class MemorySampler {
 
     /// Start sampling memory every `interval` seconds.
     func start(interval: TimeInterval = 10.0) {
+        timer?.cancel()
         let t = DispatchSource.makeTimerSource(queue: queue)
         t.schedule(deadline: .now() + interval, repeating: interval)
         t.setEventHandler { [weak self] in
@@ -38,7 +39,7 @@ final class MemorySampler {
             arguments: ["-axo", "pid=,rss="]
         )
         guard let output else {
-            os_log("MemorySampler: failed to run ps command", type: .error)
+            os_log("MemorySampler: failed to run ps command", log: AppLog.memorySampler, type: .error)
             return
         }
         let perPID = parsePS(output)
@@ -48,15 +49,20 @@ final class MemorySampler {
 
         do {
             try store.updateRecords { records in
+                var index: [String: Int] = [:]
+                index.reserveCapacity(records.count)
+                for (i, r) in records.enumerated() {
+                    index[r.bundleIdentifier] = i
+                }
                 for (bundleID, rss) in perBundle {
-                    if let idx = records.firstIndex(where: { $0.bundleIdentifier == bundleID }) {
+                    if let idx = index[bundleID] {
                         records[idx].residentMemoryBytes = rss
                     }
                     // Only update existing records — don't create new ones just for memory data
                 }
             }
         } catch {
-            os_log("MemorySampler: failed to update records: %{public}@", type: .error, error.localizedDescription)
+            os_log("MemorySampler: failed to update records: %{public}@", log: AppLog.memorySampler, type: .error, error.localizedDescription)
         }
     }
 

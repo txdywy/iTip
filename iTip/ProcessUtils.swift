@@ -44,7 +44,7 @@ struct ProcessRunner {
 
             return String(data: data, encoding: .utf8)
         } catch {
-            os_log("ProcessRunner: failed to launch %{public}@: %{public}@", type: .error,
+            os_log("ProcessRunner: failed to launch %{public}@: %{public}@", log: AppLog.processRunner, type: .error,
                    executableURL.path, error.localizedDescription)
             return nil
         }

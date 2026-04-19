@@ -17,7 +17,7 @@ final class UsageStore: UsageStoreProtocol {
         try? FileManager.default.removeItem(at: backupURL)
         // Rename the current file as backup
         try? FileManager.default.moveItem(at: storageURL, to: backupURL)
-        os_log(AppLog.usageStore, "UsageStore: recovered from corrupt data file, backup saved to %{public}@", type: .fault, backupURL.path)
+        os_log("UsageStore: recovered from corrupt data file, backup saved to %{public}@", log: AppLog.usageStore, type: .fault, backupURL.path)
     }
 
     /// Convenience initializer using the default storage path:
@@ -49,7 +49,7 @@ final class UsageStore: UsageStoreProtocol {
                 cachedRecords = records
                 return records
             } catch {
-                os_log(AppLog.usageStore, "UsageStore: failed to decode records, recovering: %{public}@", type: .error, error.localizedDescription)
+                os_log("UsageStore: failed to decode records, recovering: %{public}@", log: AppLog.usageStore, type: .error, error.localizedDescription)
                 recoverFromCorruption()
                 cachedRecords = []
                 return []
@@ -88,7 +88,7 @@ final class UsageStore: UsageStoreProtocol {
                         let decoder = JSONDecoder()
                         records = try decoder.decode([UsageRecord].self, from: data)
                     } catch {
-                        os_log(AppLog.usageStore, "UsageStore: failed to decode records in updateRecords, recovering: %{public}@", type: .error, error.localizedDescription)
+                        os_log("UsageStore: failed to decode records in updateRecords, recovering: %{public}@", log: AppLog.usageStore, type: .error, error.localizedDescription)
                         recoverFromCorruption()
                         records = []
                     }
