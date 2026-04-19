@@ -1,4 +1,11 @@
 import AppKit
+import os
+
+/// Wraps an optional URL for storage in NSCache.
+private final class CachedURL {
+    let url: URL?
+    init(_ url: URL?) { self.url = url }
+}
 
 final class MenuPresenter {
     private let store: UsageStoreProtocol
@@ -29,17 +36,17 @@ final class MenuPresenter {
         return ps
     }()
 
-    private static let maxCacheSize = 50
-
     /// Cache app icons to avoid repeated disk lookups.
-    private var iconCache: [String: NSImage] = [:]
+    /// Uses NSCache for automatic memory-pressure eviction instead of
+    /// the previous dictionary + manual removeAll strategy.
+    private let iconCache = NSCache<NSString, NSImage>()
     /// Cache app URL resolution results.
-    private var urlCache: [String: URL?] = [:]
+    private let urlCache = NSCache<NSString, CachedURL>()
 
     /// Cached records to avoid hitting the store on every menu open.
-    /// Protected by `recordsCacheLock` so notifications from background queues invalidate before the next `buildMenu()` returns on the main thread.
-    private let recordsCacheLock = NSLock()
-    private var cachedRecords: [UsageRecord]?
+    /// Uses OSAllocatedUnfairLock for safe, ergonomic locking with
+    /// built-in withLock() — replaces manual NSLock lock/unlock.
+    private let recordsCache: OSAllocatedUnfairLock<[UsageRecord]?>
     /// Observer for store-change notifications.
     private var storeObserver: NSObjectProtocol?
 
@@ -54,6 +61,10 @@ final class MenuPresenter {
     init(store: UsageStoreProtocol, ranker: UsageRanker = UsageRanker()) {
         self.store = store
         self.ranker = ranker
+        self.recordsCache = OSAllocatedUnfairLock(initialState: nil)
+
+        iconCache.countLimit = 50
+        urlCache.countLimit = 50
 
         // Invalidate cache whenever the store is updated (e.g. by ActivationMonitor or NetworkTracker)
         storeObserver = NotificationCenter.default.addObserver(
@@ -61,10 +72,7 @@ final class MenuPresenter {
             object: nil,
             queue: nil
         ) { [weak self] _ in
-            guard let self = self else { return }
-            self.recordsCacheLock.lock()
-            self.cachedRecords = nil
-            self.recordsCacheLock.unlock()
+            self?.recordsCache.withLock { $0 = nil }
         }
     }
 
@@ -87,16 +95,12 @@ final class MenuPresenter {
 
         // Use cached records if available, otherwise load from store
         let records: [UsageRecord]
-        recordsCacheLock.lock()
-        if let cached = cachedRecords {
-            recordsCacheLock.unlock()
+        let cached: [UsageRecord]? = recordsCache.withLock { $0 }
+        if let cached {
             records = cached
         } else {
-            recordsCacheLock.unlock()
             let loaded = (try? store.load()) ?? []
-            recordsCacheLock.lock()
-            cachedRecords = loaded
-            recordsCacheLock.unlock()
+            recordsCache.withLock { $0 = loaded }
             records = loaded
         }
 
@@ -107,14 +111,12 @@ final class MenuPresenter {
 
         for record in ranked {
             let appURL: URL?
-            if let cached = urlCache[record.bundleIdentifier] {
-                appURL = cached
+            let cacheKey = record.bundleIdentifier as NSString
+            if let cached = urlCache.object(forKey: cacheKey) {
+                appURL = cached.url
             } else {
                 appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: record.bundleIdentifier)
-                if urlCache.count >= Self.maxCacheSize {
-                    urlCache.removeAll(keepingCapacity: true)
-                }
-                urlCache[record.bundleIdentifier] = appURL
+                urlCache.setObject(CachedURL(appURL), forKey: cacheKey)
             }
 
             if appURL != nil {
@@ -126,9 +128,7 @@ final class MenuPresenter {
 
         if !removedIdentifiers.isEmpty {
             let cleaned = records.filter { !removedIdentifiers.contains($0.bundleIdentifier) }
-            recordsCacheLock.lock()
-            cachedRecords = cleaned
-            recordsCacheLock.unlock()
+            recordsCache.withLock { $0 = cleaned }
             DispatchQueue.global(qos: .utility).async { [store] in
                 try? store.save(cleaned)
             }
@@ -170,18 +170,22 @@ final class MenuPresenter {
     // MARK: - Icon Cache
 
     private func cachedIcon(for bundleIdentifier: String) -> NSImage? {
-        if let cached = iconCache[bundleIdentifier] {
+        let cacheKey = bundleIdentifier as NSString
+        if let cached = iconCache.object(forKey: cacheKey) {
             return cached
         }
-        guard let appURL = urlCache[bundleIdentifier] ?? NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) else {
+        let resolvedURL: URL?
+        if let cached = urlCache.object(forKey: cacheKey) {
+            resolvedURL = cached.url
+        } else {
+            resolvedURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier)
+        }
+        guard let appURL = resolvedURL else {
             return nil
         }
         let icon = NSWorkspace.shared.icon(forFile: appURL.path)
         icon.size = NSSize(width: 16, height: 16)
-        if iconCache.count >= Self.maxCacheSize {
-            iconCache.removeAll(keepingCapacity: true)
-        }
-        iconCache[bundleIdentifier] = icon
+        iconCache.setObject(icon, forKey: cacheKey)
         return icon
     }
 
@@ -219,6 +223,14 @@ final class MenuPresenter {
         let statsFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
         let dimColor = NSColor.secondaryLabelColor
 
+        // Shared attributes for all stats columns — avoids recreating
+        // identical dictionary 5 times per row.
+        let statsAttrs: [NSAttributedString.Key: Any] = [
+            .font: statsFont,
+            .foregroundColor: dimColor,
+            .paragraphStyle: paragraphStyle,
+        ]
+
         let result = NSMutableAttributedString()
 
         result.append(NSAttributedString(string: record.displayName, attributes: [
@@ -226,35 +238,11 @@ final class MenuPresenter {
             .paragraphStyle: paragraphStyle,
         ]))
 
-        result.append(NSAttributedString(string: "\t\(countStr)", attributes: [
-            .font: statsFont,
-            .foregroundColor: dimColor,
-            .paragraphStyle: paragraphStyle,
-        ]))
-
-        result.append(NSAttributedString(string: "\t\(duration)", attributes: [
-            .font: statsFont,
-            .foregroundColor: dimColor,
-            .paragraphStyle: paragraphStyle,
-        ]))
-
-        result.append(NSAttributedString(string: "\t\(memStr)", attributes: [
-            .font: statsFont,
-            .foregroundColor: dimColor,
-            .paragraphStyle: paragraphStyle,
-        ]))
-
-        result.append(NSAttributedString(string: "\t\(dlStr)", attributes: [
-            .font: statsFont,
-            .foregroundColor: dimColor,
-            .paragraphStyle: paragraphStyle,
-        ]))
-
-        result.append(NSAttributedString(string: "\t\(relativeTime)", attributes: [
-            .font: statsFont,
-            .foregroundColor: dimColor,
-            .paragraphStyle: paragraphStyle,
-        ]))
+        result.append(NSAttributedString(string: "\t\(countStr)", attributes: statsAttrs))
+        result.append(NSAttributedString(string: "\t\(duration)", attributes: statsAttrs))
+        result.append(NSAttributedString(string: "\t\(memStr)", attributes: statsAttrs))
+        result.append(NSAttributedString(string: "\t\(dlStr)", attributes: statsAttrs))
+        result.append(NSAttributedString(string: "\t\(relativeTime)", attributes: statsAttrs))
 
         return result
     }

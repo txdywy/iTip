@@ -1,6 +1,12 @@
 import Foundation
 
-struct UsageRanker {
+struct UsageRanker: Sendable {
+    let limit: Int
+
+    init(limit: Int = 10) {
+        self.limit = limit
+    }
+
     func rank(_ records: [UsageRecord]) -> [UsageRecord] {
         Array(records
             .sorted {
@@ -9,6 +15,6 @@ struct UsageRanker {
                 }
                 return $0.activationCount > $1.activationCount
             }
-            .prefix(10))
+            .prefix(limit))
     }
 }

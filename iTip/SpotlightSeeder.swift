@@ -1,5 +1,6 @@
 import Foundation
 import os.log
+import CoreServices
 
 /// Seeds the UsageStore with recently-used application data from Spotlight metadata
 /// on cold start (when the store is empty). Uses kMDItemLastUsedDate and kMDItemUseCount

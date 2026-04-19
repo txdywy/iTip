@@ -1,0 +1,763 @@
+diff --git a/iTip/ActivationMonitor.swift b/iTip/ActivationMonitor.swift
+index d5d62f2..7e07cb3 100644
+--- a/iTip/ActivationMonitor.swift
++++ b/iTip/ActivationMonitor.swift
+@@ -28,7 +28,12 @@ final class ActivationMonitor {
+     private var foregroundSince: Date?
+ 
+     /// Indicates whether activation monitoring is currently active.
+-    private(set) var isMonitoring: Bool = false
++    /// Thread-safe: reads go through syncQueue to prevent data races with
++    /// writes that happen inside startMonitoring/stopMonitoring.
++    private var _isMonitoring: Bool = false
++    var isMonitoring: Bool {
++        syncQueue.sync { _isMonitoring }
++    }
+ 
+     init(store: UsageStoreProtocol,
+          notificationCenter: NotificationCenter = NSWorkspace.shared.notificationCenter,
+@@ -58,7 +63,7 @@ final class ActivationMonitor {
+             ) { [weak self] notification in
+                 self?.handleActivation(notification)
+             }
+-            isMonitoring = (observer != nil)
++            _isMonitoring = (observer != nil)
+ 
+             let t = DispatchSource.makeTimerSource(queue: syncQueue)
+             t.schedule(deadline: .now() + 5.0, repeating: 5.0)
+@@ -79,7 +84,7 @@ final class ActivationMonitor {
+             saveTimer?.cancel()
+             saveTimer = nil
+             _flushIfDirty()
+-            isMonitoring = false
++            _isMonitoring = false
+         }
+     }
+ 
+@@ -104,49 +109,58 @@ final class ActivationMonitor {
+         populateCache()
+     }
+ 
++    /// Public entry point: dispatches onto syncQueue and delegates to the
++    /// unsynchronized `_recordActivation`. Splitting the logic prevents
++    /// accidental nested locking if internal code ever needs to call it.
+     func recordActivation(bundleIdentifier: String, displayName: String) {
+         syncQueue.sync {
+-            guard bundleIdentifier != selfBundleIdentifier else { return }
+-            guard !bundleIdentifier.isEmpty else { return }
++            _recordActivation(bundleIdentifier: bundleIdentifier, displayName: displayName)
++        }
++    }
+ 
+-            ensureCacheInitialized()
++    // MARK: - Private
+ 
+-            let now = dateProvider()
++    /// Unsynchronized implementation of recordActivation.
++    /// **Must** be called while already on `syncQueue`.
++    private func _recordActivation(bundleIdentifier: String, displayName: String) {
++        guard bundleIdentifier != selfBundleIdentifier else { return }
++        guard !bundleIdentifier.isEmpty else { return }
+ 
+-            // Accumulate foreground duration for the previously active app
+-            if let prevID = currentForegroundBundleID,
+-               let since = foregroundSince,
+-               prevID != selfBundleIdentifier,
+-               let idx = indexByBundleID[prevID] {
+-                let duration = now.timeIntervalSince(since)
+-                if duration > 0 {
+-                    cachedRecords[idx].totalActiveSeconds += duration
+-                }
+-            }
++        ensureCacheInitialized()
++
++        let now = dateProvider()
+ 
+-            // Update foreground tracking
+-            currentForegroundBundleID = bundleIdentifier
+-            foregroundSince = now
+-
+-            if let idx = indexByBundleID[bundleIdentifier] {
+-                cachedRecords[idx].lastActivatedAt = now
+-                cachedRecords[idx].activationCount += 1
+-                cachedRecords[idx].displayName = displayName
+-            } else {
+-                indexByBundleID[bundleIdentifier] = cachedRecords.count
+-                cachedRecords.append(UsageRecord(
+-                    bundleIdentifier: bundleIdentifier,
+-                    displayName: displayName,
+-                    lastActivatedAt: now,
+-                    activationCount: 1
+-                ))
++        // Accumulate foreground duration for the previously active app
++        if let prevID = currentForegroundBundleID,
++           let since = foregroundSince,
++           prevID != selfBundleIdentifier,
++           let idx = indexByBundleID[prevID] {
++            let duration = now.timeIntervalSince(since)
++            if duration > 0 {
++                cachedRecords[idx].totalActiveSeconds += duration
+             }
++        }
+ 
+-            isDirty = true
++        // Update foreground tracking
++        currentForegroundBundleID = bundleIdentifier
++        foregroundSince = now
++
++        if let idx = indexByBundleID[bundleIdentifier] {
++            cachedRecords[idx].lastActivatedAt = now
++            cachedRecords[idx].activationCount += 1
++            cachedRecords[idx].displayName = displayName
++        } else {
++            indexByBundleID[bundleIdentifier] = cachedRecords.count
++            cachedRecords.append(UsageRecord(
++                bundleIdentifier: bundleIdentifier,
++                displayName: displayName,
++                lastActivatedAt: now,
++                activationCount: 1
++            ))
+         }
+-    }
+ 
+-    // MARK: - Private
++        isDirty = true
++    }
+ 
+     private func rebuildIndex() {
+         indexByBundleID.removeAll(keepingCapacity: true)
+@@ -156,28 +170,40 @@ final class ActivationMonitor {
+     }
+ 
+     /// Internal flush implementation. Must be called while holding `syncQueue`.
++    ///
++    /// Merge strategy: uses disk records as the base and only overlays
++    /// activation-specific fields from the in-memory cache. This way, fields
++    /// written by other writers (NetworkTracker → totalBytesDownloaded,
++    /// MemorySampler → residentMemoryBytes, and any future fields) are
++    /// preserved automatically without explicit copy-back logic.
+     private func _flushIfDirty() {
+         guard isDirty else { return }
+         isDirty = false
+ 
+         let snapshot = cachedRecords
++        var snapshotIndex: [String: Int] = [:]
++        for (i, record) in snapshot.enumerated() {
++            snapshotIndex[record.bundleIdentifier] = i
++        }
++
+         do {
+             try store.updateRecords { diskRecords in
+-                // Merge: overlay activation data from cache onto disk records,
+-                // preserving data written by NetworkTracker and MemorySampler.
+                 var diskRecordIndex: [String: Int] = [:]
+                 for (i, record) in diskRecords.enumerated() {
+                     diskRecordIndex[record.bundleIdentifier] = i
+                 }
+ 
+-                for var record in snapshot {
+-                    if let idx = diskRecordIndex[record.bundleIdentifier] {
+-                        // Preserve network and memory data from disk
+-                        record.totalBytesDownloaded = diskRecords[idx].totalBytesDownloaded
+-                        record.residentMemoryBytes = diskRecords[idx].residentMemoryBytes
+-                        diskRecords[idx] = record
++                for cachedRecord in snapshot {
++                    if let idx = diskRecordIndex[cachedRecord.bundleIdentifier] {
++                        // Overlay only activation-related fields onto the disk
++                        // record, preserving network, memory, and any future
++                        // fields written by other components.
++                        diskRecords[idx].lastActivatedAt = cachedRecord.lastActivatedAt
++                        diskRecords[idx].activationCount = cachedRecord.activationCount
++                        diskRecords[idx].displayName = cachedRecord.displayName
++                        diskRecords[idx].totalActiveSeconds = cachedRecord.totalActiveSeconds
+                     } else {
+-                        diskRecords.append(record)
++                        diskRecords.append(cachedRecord)
+                     }
+                 }
+             }
+diff --git a/iTip/AppDelegate.swift b/iTip/AppDelegate.swift
+index 541fefd..6aecc32 100644
+--- a/iTip/AppDelegate.swift
++++ b/iTip/AppDelegate.swift
+@@ -29,8 +29,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
+ 
+         statusBarController = StatusBarController(menuPresenter: menuPresenter)
+ 
+-        // Seed store with Spotlight data on cold start (empty store)
+-        // Done async after UI is ready to avoid blocking app launch
++        // Seed store with Spotlight data on cold start (empty store).
++        // Done async after UI is ready to avoid blocking app launch.
++        //
++        // Queue ordering note: SpotlightSeeder calls store.updateRecords which
++        // syncs onto the store's serial queue. This is safe because the utility
++        // GCD thread does not hold any other iTip queue lock — the store queue
++        // is always the innermost lock.
+         DispatchQueue.global(qos: .utility).async {
+             let seeder = SpotlightSeeder(store: store)
+             seeder.seedIfEmpty()
+@@ -48,12 +53,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
+     @objc func launchApp(_ sender: NSMenuItem) {
+         guard let bundleIdentifier = sender.representedObject as? String else { return }
+ 
+-        appLauncher.activate(bundleIdentifier: bundleIdentifier) { [weak self] result in
+-            switch result {
+-            case .success:
+-                break
+-            case .failure(let error):
+-                self?.showErrorAlert(for: error)
++        Task { @MainActor in
++            do {
++                try await appLauncher.activate(bundleIdentifier: bundleIdentifier)
++            } catch let error as AppLaunchError {
++                showErrorAlert(for: error)
++            } catch {
++                // Unexpected error type — should not happen
+             }
+         }
+     }
+diff --git a/iTip/AppLauncher.swift b/iTip/AppLauncher.swift
+index 9e0ef59..35c4870 100644
+--- a/iTip/AppLauncher.swift
++++ b/iTip/AppLauncher.swift
+@@ -5,8 +5,33 @@ enum AppLaunchError: Error {
+     case launchFailed(bundleIdentifier: String, underlyingError: Error)
+ }
+ 
+-struct AppLauncher {
++struct AppLauncher: Sendable {
+     /// Activates or launches the app with the given bundle identifier.
++    /// Uses async/await for clean structured concurrency.
++    func activate(bundleIdentifier: String) async throws {
++        // If the app is already running, activate it directly
++        let runningApps = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
++        if let runningApp = runningApps.first {
++            runningApp.activate()
++            return
++        }
++
++        // App is not running — try to find and launch it
++        guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) else {
++            throw AppLaunchError.applicationNotFound(bundleIdentifier: bundleIdentifier)
++        }
++
++        let configuration = NSWorkspace.OpenConfiguration()
++        configuration.activates = true
++
++        do {
++            _ = try await NSWorkspace.shared.openApplication(at: appURL, configuration: configuration)
++        } catch {
++            throw AppLaunchError.launchFailed(bundleIdentifier: bundleIdentifier, underlyingError: error)
++        }
++    }
++
++    /// Completion-handler wrapper for @objc call sites that cannot use async/await.
+     /// Completion is always called on the main thread.
+     func activate(bundleIdentifier: String, completion: @escaping (Result<Void, AppLaunchError>) -> Void) {
+         // If the app is already running, activate it directly
+diff --git a/iTip/MemorySampler.swift b/iTip/MemorySampler.swift
+index c9face7..94fb008 100644
+--- a/iTip/MemorySampler.swift
++++ b/iTip/MemorySampler.swift
+@@ -2,8 +2,10 @@ import Foundation
+ import AppKit
+ import os.log
+ 
+-/// Periodically samples per-process Resident Set Size (RSS) via `ps` and
+-/// updates `residentMemoryBytes` on existing UsageRecords in the store.
++/// Periodically samples per-process Resident Set Size (RSS) via `proc_pidinfo`
++/// Mach API and updates `residentMemoryBytes` on existing UsageRecords in the store.
++/// Uses direct kernel calls instead of forking a `ps` subprocess, avoiding the
++/// process-creation overhead every sample interval.
+ final class MemorySampler {
+ 
+     private let store: UsageStoreProtocol
+@@ -34,16 +36,22 @@ final class MemorySampler {
+     // MARK: - Private
+ 
+     private func sample() {
+-        let output = ProcessRunner.run(
+-            executableURL: URL(fileURLWithPath: "/bin/ps"),
+-            arguments: ["-axo", "pid=,rss="]
+-        )
+-        guard let output else {
+-            os_log("MemorySampler: failed to run ps command", log: AppLog.memorySampler, type: .error)
+-            return
++        // Query RSS directly via Mach proc_pidinfo — no subprocess fork required.
++        let apps = NSWorkspace.shared.runningApplications
++        var perBundle: [String: Int64] = [:]
++
++        for app in apps {
++            guard let bundleID = app.bundleIdentifier else { continue }
++            let pid = app.processIdentifier
++            var taskInfo = proc_taskinfo()
++            let size = MemoryLayout<proc_taskinfo>.stride
++            let ret = proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &taskInfo, Int32(size))
++            guard ret == Int32(size) else { continue }
++            let rss = Int64(taskInfo.pti_resident_size)
++            if rss > 0 {
++                perBundle[bundleID] = rss
++            }
+         }
+-        let perPID = parsePS(output)
+-        let perBundle = ProcessUtils.mapToBundleIDs(perPID)
+ 
+         guard !perBundle.isEmpty else { return }
+ 
+@@ -65,23 +73,4 @@ final class MemorySampler {
+             os_log("MemorySampler: failed to update records: %{public}@", log: AppLog.memorySampler, type: .error, error.localizedDescription)
+         }
+     }
+-
+-    /// Parse `ps` output into [PID: rssBytes].
+-    /// Input format: lines of "  PID  RSS" (RSS in KB).
+-    private func parsePS(_ output: String) -> [pid_t: Int64] {
+-        var result: [pid_t: Int64] = [:]
+-        let lines = output.components(separatedBy: "\n")
+-
+-        for line in lines {
+-            let parts = line.split(maxSplits: 1, whereSeparator: { $0.isWhitespace })
+-            guard parts.count == 2,
+-                  let pid = Int32(parts[0]),
+-                  let rssKB = Int64(parts[1]) else { continue }
+-            let rssBytes = rssKB * 1024  // Convert KB → bytes
+-            if rssBytes > 0 {
+-                result[pid] = rssBytes
+-            }
+-        }
+-        return result
+-    }
+ }
+diff --git a/iTip/MenuPresenter.swift b/iTip/MenuPresenter.swift
+index e2fe38c..c1d4f50 100644
+--- a/iTip/MenuPresenter.swift
++++ b/iTip/MenuPresenter.swift
+@@ -1,4 +1,11 @@
+ import AppKit
++import os
++
++/// Wraps an optional URL for storage in NSCache.
++private final class CachedURL {
++    let url: URL?
++    init(_ url: URL?) { self.url = url }
++}
+ 
+ final class MenuPresenter {
+     private let store: UsageStoreProtocol
+@@ -29,17 +36,17 @@ final class MenuPresenter {
+         return ps
+     }()
+ 
+-    private static let maxCacheSize = 50
+-
+     /// Cache app icons to avoid repeated disk lookups.
+-    private var iconCache: [String: NSImage] = [:]
++    /// Uses NSCache for automatic memory-pressure eviction instead of
++    /// the previous dictionary + manual removeAll strategy.
++    private let iconCache = NSCache<NSString, NSImage>()
+     /// Cache app URL resolution results.
+-    private var urlCache: [String: URL?] = [:]
++    private let urlCache = NSCache<NSString, CachedURL>()
+ 
+     /// Cached records to avoid hitting the store on every menu open.
+-    /// Protected by `recordsCacheLock` so notifications from background queues invalidate before the next `buildMenu()` returns on the main thread.
+-    private let recordsCacheLock = NSLock()
+-    private var cachedRecords: [UsageRecord]?
++    /// Uses OSAllocatedUnfairLock for safe, ergonomic locking with
++    /// built-in withLock() — replaces manual NSLock lock/unlock.
++    private let recordsCache: OSAllocatedUnfairLock<[UsageRecord]?>
+     /// Observer for store-change notifications.
+     private var storeObserver: NSObjectProtocol?
+ 
+@@ -54,6 +61,10 @@ final class MenuPresenter {
+     init(store: UsageStoreProtocol, ranker: UsageRanker = UsageRanker()) {
+         self.store = store
+         self.ranker = ranker
++        self.recordsCache = OSAllocatedUnfairLock(initialState: nil)
++
++        iconCache.countLimit = 50
++        urlCache.countLimit = 50
+ 
+         // Invalidate cache whenever the store is updated (e.g. by ActivationMonitor or NetworkTracker)
+         storeObserver = NotificationCenter.default.addObserver(
+@@ -61,10 +72,7 @@ final class MenuPresenter {
+             object: nil,
+             queue: nil
+         ) { [weak self] _ in
+-            guard let self = self else { return }
+-            self.recordsCacheLock.lock()
+-            self.cachedRecords = nil
+-            self.recordsCacheLock.unlock()
++            self?.recordsCache.withLock { $0 = nil }
+         }
+     }
+ 
+@@ -87,16 +95,12 @@ final class MenuPresenter {
+ 
+         // Use cached records if available, otherwise load from store
+         let records: [UsageRecord]
+-        recordsCacheLock.lock()
+-        if let cached = cachedRecords {
+-            recordsCacheLock.unlock()
++        let cached: [UsageRecord]? = recordsCache.withLock { $0 }
++        if let cached {
+             records = cached
+         } else {
+-            recordsCacheLock.unlock()
+             let loaded = (try? store.load()) ?? []
+-            recordsCacheLock.lock()
+-            cachedRecords = loaded
+-            recordsCacheLock.unlock()
++            recordsCache.withLock { $0 = loaded }
+             records = loaded
+         }
+ 
+@@ -107,14 +111,12 @@ final class MenuPresenter {
+ 
+         for record in ranked {
+             let appURL: URL?
+-            if let cached = urlCache[record.bundleIdentifier] {
+-                appURL = cached
++            let cacheKey = record.bundleIdentifier as NSString
++            if let cached = urlCache.object(forKey: cacheKey) {
++                appURL = cached.url
+             } else {
+                 appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: record.bundleIdentifier)
+-                if urlCache.count >= Self.maxCacheSize {
+-                    urlCache.removeAll(keepingCapacity: true)
+-                }
+-                urlCache[record.bundleIdentifier] = appURL
++                urlCache.setObject(CachedURL(appURL), forKey: cacheKey)
+             }
+ 
+             if appURL != nil {
+@@ -126,9 +128,7 @@ final class MenuPresenter {
+ 
+         if !removedIdentifiers.isEmpty {
+             let cleaned = records.filter { !removedIdentifiers.contains($0.bundleIdentifier) }
+-            recordsCacheLock.lock()
+-            cachedRecords = cleaned
+-            recordsCacheLock.unlock()
++            recordsCache.withLock { $0 = cleaned }
+             DispatchQueue.global(qos: .utility).async { [store] in
+                 try? store.save(cleaned)
+             }
+@@ -170,18 +170,22 @@ final class MenuPresenter {
+     // MARK: - Icon Cache
+ 
+     private func cachedIcon(for bundleIdentifier: String) -> NSImage? {
+-        if let cached = iconCache[bundleIdentifier] {
++        let cacheKey = bundleIdentifier as NSString
++        if let cached = iconCache.object(forKey: cacheKey) {
+             return cached
+         }
+-        guard let appURL = urlCache[bundleIdentifier] ?? NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) else {
++        let resolvedURL: URL?
++        if let cached = urlCache.object(forKey: cacheKey) {
++            resolvedURL = cached.url
++        } else {
++            resolvedURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier)
++        }
++        guard let appURL = resolvedURL else {
+             return nil
+         }
+         let icon = NSWorkspace.shared.icon(forFile: appURL.path)
+         icon.size = NSSize(width: 16, height: 16)
+-        if iconCache.count >= Self.maxCacheSize {
+-            iconCache.removeAll(keepingCapacity: true)
+-        }
+-        iconCache[bundleIdentifier] = icon
++        iconCache.setObject(icon, forKey: cacheKey)
+         return icon
+     }
+ 
+@@ -219,42 +223,26 @@ final class MenuPresenter {
+         let statsFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+         let dimColor = NSColor.secondaryLabelColor
+ 
+-        let result = NSMutableAttributedString()
+-
+-        result.append(NSAttributedString(string: record.displayName, attributes: [
+-            .font: nameFont,
+-            .paragraphStyle: paragraphStyle,
+-        ]))
+-
+-        result.append(NSAttributedString(string: "\t\(countStr)", attributes: [
+-            .font: statsFont,
+-            .foregroundColor: dimColor,
+-            .paragraphStyle: paragraphStyle,
+-        ]))
+-
+-        result.append(NSAttributedString(string: "\t\(duration)", attributes: [
++        // Shared attributes for all stats columns — avoids recreating
++        // identical dictionary 5 times per row.
++        let statsAttrs: [NSAttributedString.Key: Any] = [
+             .font: statsFont,
+             .foregroundColor: dimColor,
+             .paragraphStyle: paragraphStyle,
+-        ]))
++        ]
+ 
+-        result.append(NSAttributedString(string: "\t\(memStr)", attributes: [
+-            .font: statsFont,
+-            .foregroundColor: dimColor,
+-            .paragraphStyle: paragraphStyle,
+-        ]))
++        let result = NSMutableAttributedString()
+ 
+-        result.append(NSAttributedString(string: "\t\(dlStr)", attributes: [
+-            .font: statsFont,
+-            .foregroundColor: dimColor,
++        result.append(NSAttributedString(string: record.displayName, attributes: [
++            .font: nameFont,
+             .paragraphStyle: paragraphStyle,
+         ]))
+ 
+-        result.append(NSAttributedString(string: "\t\(relativeTime)", attributes: [
+-            .font: statsFont,
+-            .foregroundColor: dimColor,
+-            .paragraphStyle: paragraphStyle,
+-        ]))
++        result.append(NSAttributedString(string: "\t\(countStr)", attributes: statsAttrs))
++        result.append(NSAttributedString(string: "\t\(duration)", attributes: statsAttrs))
++        result.append(NSAttributedString(string: "\t\(memStr)", attributes: statsAttrs))
++        result.append(NSAttributedString(string: "\t\(dlStr)", attributes: statsAttrs))
++        result.append(NSAttributedString(string: "\t\(relativeTime)", attributes: statsAttrs))
+ 
+         return result
+     }
+diff --git a/iTip/SpotlightSeeder.swift b/iTip/SpotlightSeeder.swift
+index 2ecd872..4d0ca7d 100644
+--- a/iTip/SpotlightSeeder.swift
++++ b/iTip/SpotlightSeeder.swift
+@@ -1,5 +1,6 @@
+ import Foundation
+ import os.log
++import CoreServices
+ 
+ /// Seeds the UsageStore with recently-used application data from Spotlight metadata
+ /// on cold start (when the store is empty). Uses kMDItemLastUsedDate and kMDItemUseCount
+diff --git a/iTip/UsageRanker.swift b/iTip/UsageRanker.swift
+index 978f585..d528d80 100644
+--- a/iTip/UsageRanker.swift
++++ b/iTip/UsageRanker.swift
+@@ -1,6 +1,12 @@
+ import Foundation
+ 
+-struct UsageRanker {
++struct UsageRanker: Sendable {
++    let limit: Int
++
++    init(limit: Int = 10) {
++        self.limit = limit
++    }
++
+     func rank(_ records: [UsageRecord]) -> [UsageRecord] {
+         Array(records
+             .sorted {
+@@ -9,6 +15,6 @@ struct UsageRanker {
+                 }
+                 return $0.activationCount > $1.activationCount
+             }
+-            .prefix(10))
++            .prefix(limit))
+     }
+ }
+diff --git a/iTip/UsageRecord.swift b/iTip/UsageRecord.swift
+index ee3a2a2..2ef9b54 100644
+--- a/iTip/UsageRecord.swift
++++ b/iTip/UsageRecord.swift
+@@ -1,6 +1,6 @@
+ import Foundation
+ 
+-struct UsageRecord: Codable, Equatable {
++struct UsageRecord: Codable, Equatable, Sendable {
+     let bundleIdentifier: String
+     var displayName: String
+     var lastActivatedAt: Date
+diff --git a/iTip/UsageStore.swift b/iTip/UsageStore.swift
+index fbad925..23172ee 100644
+--- a/iTip/UsageStore.swift
++++ b/iTip/UsageStore.swift
+@@ -1,6 +1,13 @@
+ import Foundation
+ import os.log
+ 
++/// Thread-safety model:
++/// All public methods dispatch synchronously onto `queue`, forming a serial
++/// execution boundary. The notification is posted *after* the sync block returns
++/// so observers never re-enter the queue during the same call.
++///
++/// Lock ordering: callers must NOT hold any other iTip queue lock when calling
++/// UsageStore methods — the store queue is always the innermost lock.
+ final class UsageStore: UsageStoreProtocol {
+ 
+     private let storageURL: URL
+@@ -11,15 +18,6 @@ final class UsageStore: UsageStoreProtocol {
+         self.storageURL = storageURL
+     }
+ 
+-    private func recoverFromCorruption() {
+-        let backupURL = storageURL.appendingPathExtension("corrupt")
+-        // Remove any previous corrupt backup
+-        try? FileManager.default.removeItem(at: backupURL)
+-        // Rename the current file as backup
+-        try? FileManager.default.moveItem(at: storageURL, to: backupURL)
+-        os_log("UsageStore: recovered from corrupt data file, backup saved to %{public}@", log: AppLog.usageStore, type: .fault, backupURL.path)
+-    }
+-
+     /// Convenience initializer using the default storage path:
+     /// ~/Library/Application Support/iTip/usage.json
+     convenience init() {
+@@ -31,85 +29,76 @@ final class UsageStore: UsageStoreProtocol {
+ 
+     func load() throws -> [UsageRecord] {
+         try queue.sync {
+-            if let cachedRecords {
+-                return cachedRecords
+-            }
+-
+-            let fileManager = FileManager.default
+-            guard fileManager.fileExists(atPath: storageURL.path) else {
+-                cachedRecords = []
+-                return []
+-            }
+-
+-            let data = try Data(contentsOf: storageURL)
+-
+-            do {
+-                let decoder = JSONDecoder()
+-                let records = try decoder.decode([UsageRecord].self, from: data)
+-                cachedRecords = records
+-                return records
+-            } catch {
+-                os_log("UsageStore: failed to decode records, recovering: %{public}@", log: AppLog.usageStore, type: .error, error.localizedDescription)
+-                recoverFromCorruption()
+-                cachedRecords = []
+-                return []
+-            }
++            try _loadFromDisk()
+         }
+     }
+ 
+     func save(_ records: [UsageRecord]) throws {
+         try queue.sync {
+-            let fileManager = FileManager.default
+-            let directory = storageURL.deletingLastPathComponent()
+-
+-            if !fileManager.fileExists(atPath: directory.path) {
+-                try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+-            }
+-
+-            let encoder = JSONEncoder()
+-            let data = try encoder.encode(records)
+-            try data.write(to: storageURL, options: .atomic)
+-            cachedRecords = records
++            try _saveToDisk(records)
+         }
+         NotificationCenter.default.post(name: .usageStoreDidUpdate, object: self)
+     }
+ 
+     func updateRecords(_ modify: (inout [UsageRecord]) -> Void) throws {
+         try queue.sync {
+-            // Load current state (cache or disk)
+-            var records: [UsageRecord]
+-            if let cachedRecords {
+-                records = cachedRecords
+-            } else {
+-                let fileManager = FileManager.default
+-                if fileManager.fileExists(atPath: storageURL.path) {
+-                    let data = try Data(contentsOf: storageURL)
+-                    do {
+-                        let decoder = JSONDecoder()
+-                        records = try decoder.decode([UsageRecord].self, from: data)
+-                    } catch {
+-                        os_log("UsageStore: failed to decode records in updateRecords, recovering: %{public}@", log: AppLog.usageStore, type: .error, error.localizedDescription)
+-                        recoverFromCorruption()
+-                        records = []
+-                    }
+-                } else {
+-                    records = []
+-                }
+-            }
+-
++            var records = try _loadFromDisk()
+             modify(&records)
++            try _saveToDisk(records)
++        }
++        NotificationCenter.default.post(name: .usageStoreDidUpdate, object: self)
++    }
++
++    // MARK: - Private (must be called on `queue`)
++
++    /// Loads records from disk (or returns cached copy). Must be called on `queue`.
++    private func _loadFromDisk() throws -> [UsageRecord] {
++        if let cachedRecords = cachedRecords {
++            return cachedRecords
++        }
++
++        let fileManager = FileManager.default
++        guard fileManager.fileExists(atPath: storageURL.path) else {
++            cachedRecords = []
++            return []
++        }
+ 
+-            let fileManager = FileManager.default
+-            let directory = storageURL.deletingLastPathComponent()
+-            if !fileManager.fileExists(atPath: directory.path) {
+-                try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+-            }
++        let data = try Data(contentsOf: storageURL)
+ 
+-            let encoder = JSONEncoder()
+-            let data = try encoder.encode(records)
+-            try data.write(to: storageURL, options: .atomic)
++        do {
++            let decoder = JSONDecoder()
++            let records = try decoder.decode([UsageRecord].self, from: data)
+             cachedRecords = records
++            return records
++        } catch {
++            os_log("UsageStore: failed to decode records, recovering: %{public}@", log: AppLog.usageStore, type: .error, error.localizedDescription)
++            recoverFromCorruption()
++            cachedRecords = []
++            return []
+         }
+-        NotificationCenter.default.post(name: .usageStoreDidUpdate, object: self)
++    }
++
++    /// Encodes and atomically writes records to disk. Must be called on `queue`.
++    private func _saveToDisk(_ records: [UsageRecord]) throws {
++        let fileManager = FileManager.default
++        let directory = storageURL.deletingLastPathComponent()
++
++        if !fileManager.fileExists(atPath: directory.path) {
++            try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
++        }
++
++        let encoder = JSONEncoder()
++        let data = try encoder.encode(records)
++        try data.write(to: storageURL, options: .atomic)
++        cachedRecords = records
++    }
++
++    private func recoverFromCorruption() {
++        let backupURL = storageURL.appendingPathExtension("corrupt")
++        // Remove any previous corrupt backup
++        try? FileManager.default.removeItem(at: backupURL)
++        // Rename the current file as backup
++        try? FileManager.default.moveItem(at: storageURL, to: backupURL)
++        os_log("UsageStore: recovered from corrupt data file, backup saved to %{public}@", log: AppLog.usageStore, type: .fault, backupURL.path)
+     }
+ }
+diff --git a/iTip/UsageStoreProtocol.swift b/iTip/UsageStoreProtocol.swift
+index e47a18b..11de4b8 100644
+--- a/iTip/UsageStoreProtocol.swift
++++ b/iTip/UsageStoreProtocol.swift
+@@ -9,5 +9,5 @@ protocol UsageStoreProtocol {
+ 
+ extension Notification.Name {
+     /// Posted after records are persisted to disk.
+-    static let usageStoreDidUpdate = Notification.Name("com.example.iTip.usageStoreDidUpdate")
++    static let usageStoreDidUpdate = Notification.Name("com.txdywy.iTip.usageStoreDidUpdate")
+ }

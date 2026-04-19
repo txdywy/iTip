@@ -9,5 +9,5 @@ protocol UsageStoreProtocol {
 
 extension Notification.Name {
     /// Posted after records are persisted to disk.
-    static let usageStoreDidUpdate = Notification.Name("com.example.iTip.usageStoreDidUpdate")
+    static let usageStoreDidUpdate = Notification.Name("com.txdywy.iTip.usageStoreDidUpdate")
 }

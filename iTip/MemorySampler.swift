@@ -2,8 +2,10 @@ import Foundation
 import AppKit
 import os.log
 
-/// Periodically samples per-process Resident Set Size (RSS) via `ps` and
-/// updates `residentMemoryBytes` on existing UsageRecords in the store.
+/// Periodically samples per-process Resident Set Size (RSS) via `proc_pidinfo`
+/// Mach API and updates `residentMemoryBytes` on existing UsageRecords in the store.
+/// Uses direct kernel calls instead of forking a `ps` subprocess, avoiding the
+/// process-creation overhead every sample interval.
 final class MemorySampler {
 
     private let store: UsageStoreProtocol
@@ -34,16 +36,22 @@ final class MemorySampler {
     // MARK: - Private
 
     private func sample() {
-        let output = ProcessRunner.run(
-            executableURL: URL(fileURLWithPath: "/bin/ps"),
-            arguments: ["-axo", "pid=,rss="]
-        )
-        guard let output else {
-            os_log("MemorySampler: failed to run ps command", log: AppLog.memorySampler, type: .error)
-            return
+        // Query RSS directly via Mach proc_pidinfo — no subprocess fork required.
+        let apps = NSWorkspace.shared.runningApplications
+        var perBundle: [String: Int64] = [:]
+
+        for app in apps {
+            guard let bundleID = app.bundleIdentifier else { continue }
+            let pid = app.processIdentifier
+            var taskInfo = proc_taskinfo()
+            let size = MemoryLayout<proc_taskinfo>.stride
+            let ret = proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &taskInfo, Int32(size))
+            guard ret == Int32(size) else { continue }
+            let rss = Int64(taskInfo.pti_resident_size)
+            if rss > 0 {
+                perBundle[bundleID] = rss
+            }
         }
-        let perPID = parsePS(output)
-        let perBundle = ProcessUtils.mapToBundleIDs(perPID)
 
         guard !perBundle.isEmpty else { return }
 
@@ -64,24 +72,5 @@ final class MemorySampler {
         } catch {
             os_log("MemorySampler: failed to update records: %{public}@", log: AppLog.memorySampler, type: .error, error.localizedDescription)
         }
-    }
-
-    /// Parse `ps` output into [PID: rssBytes].
-    /// Input format: lines of "  PID  RSS" (RSS in KB).
-    private func parsePS(_ output: String) -> [pid_t: Int64] {
-        var result: [pid_t: Int64] = [:]
-        let lines = output.components(separatedBy: "\n")
-
-        for line in lines {
-            let parts = line.split(maxSplits: 1, whereSeparator: { $0.isWhitespace })
-            guard parts.count == 2,
-                  let pid = Int32(parts[0]),
-                  let rssKB = Int64(parts[1]) else { continue }
-            let rssBytes = rssKB * 1024  // Convert KB → bytes
-            if rssBytes > 0 {
-                result[pid] = rssBytes
-            }
-        }
-        return result
     }
 }

@@ -28,7 +28,12 @@ final class ActivationMonitor {
     private var foregroundSince: Date?
 
     /// Indicates whether activation monitoring is currently active.
-    private(set) var isMonitoring: Bool = false
+    /// Thread-safe: reads go through syncQueue to prevent data races with
+    /// writes that happen inside startMonitoring/stopMonitoring.
+    private var _isMonitoring: Bool = false
+    var isMonitoring: Bool {
+        syncQueue.sync { _isMonitoring }
+    }
 
     init(store: UsageStoreProtocol,
          notificationCenter: NotificationCenter = NSWorkspace.shared.notificationCenter,
@@ -58,7 +63,7 @@ final class ActivationMonitor {
             ) { [weak self] notification in
                 self?.handleActivation(notification)
             }
-            isMonitoring = (observer != nil)
+            _isMonitoring = (observer != nil)
 
             let t = DispatchSource.makeTimerSource(queue: syncQueue)
             t.schedule(deadline: .now() + 5.0, repeating: 5.0)
@@ -79,7 +84,7 @@ final class ActivationMonitor {
             saveTimer?.cancel()
             saveTimer = nil
             _flushIfDirty()
-            isMonitoring = false
+            _isMonitoring = false
         }
     }
 
@@ -104,49 +109,58 @@ final class ActivationMonitor {
         populateCache()
     }
 
+    /// Public entry point: dispatches onto syncQueue and delegates to the
+    /// unsynchronized `_recordActivation`. Splitting the logic prevents
+    /// accidental nested locking if internal code ever needs to call it.
     func recordActivation(bundleIdentifier: String, displayName: String) {
         syncQueue.sync {
-            guard bundleIdentifier != selfBundleIdentifier else { return }
-            guard !bundleIdentifier.isEmpty else { return }
-
-            ensureCacheInitialized()
-
-            let now = dateProvider()
-
-            // Accumulate foreground duration for the previously active app
-            if let prevID = currentForegroundBundleID,
-               let since = foregroundSince,
-               prevID != selfBundleIdentifier,
-               let idx = indexByBundleID[prevID] {
-                let duration = now.timeIntervalSince(since)
-                if duration > 0 {
-                    cachedRecords[idx].totalActiveSeconds += duration
-                }
-            }
-
-            // Update foreground tracking
-            currentForegroundBundleID = bundleIdentifier
-            foregroundSince = now
-
-            if let idx = indexByBundleID[bundleIdentifier] {
-                cachedRecords[idx].lastActivatedAt = now
-                cachedRecords[idx].activationCount += 1
-                cachedRecords[idx].displayName = displayName
-            } else {
-                indexByBundleID[bundleIdentifier] = cachedRecords.count
-                cachedRecords.append(UsageRecord(
-                    bundleIdentifier: bundleIdentifier,
-                    displayName: displayName,
-                    lastActivatedAt: now,
-                    activationCount: 1
-                ))
-            }
-
-            isDirty = true
+            _recordActivation(bundleIdentifier: bundleIdentifier, displayName: displayName)
         }
     }
 
     // MARK: - Private
+
+    /// Unsynchronized implementation of recordActivation.
+    /// **Must** be called while already on `syncQueue`.
+    private func _recordActivation(bundleIdentifier: String, displayName: String) {
+        guard bundleIdentifier != selfBundleIdentifier else { return }
+        guard !bundleIdentifier.isEmpty else { return }
+
+        ensureCacheInitialized()
+
+        let now = dateProvider()
+
+        // Accumulate foreground duration for the previously active app
+        if let prevID = currentForegroundBundleID,
+           let since = foregroundSince,
+           prevID != selfBundleIdentifier,
+           let idx = indexByBundleID[prevID] {
+            let duration = now.timeIntervalSince(since)
+            if duration > 0 {
+                cachedRecords[idx].totalActiveSeconds += duration
+            }
+        }
+
+        // Update foreground tracking
+        currentForegroundBundleID = bundleIdentifier
+        foregroundSince = now
+
+        if let idx = indexByBundleID[bundleIdentifier] {
+            cachedRecords[idx].lastActivatedAt = now
+            cachedRecords[idx].activationCount += 1
+            cachedRecords[idx].displayName = displayName
+        } else {
+            indexByBundleID[bundleIdentifier] = cachedRecords.count
+            cachedRecords.append(UsageRecord(
+                bundleIdentifier: bundleIdentifier,
+                displayName: displayName,
+                lastActivatedAt: now,
+                activationCount: 1
+            ))
+        }
+
+        isDirty = true
+    }
 
     private func rebuildIndex() {
         indexByBundleID.removeAll(keepingCapacity: true)
@@ -156,28 +170,40 @@ final class ActivationMonitor {
     }
 
     /// Internal flush implementation. Must be called while holding `syncQueue`.
+    ///
+    /// Merge strategy: uses disk records as the base and only overlays
+    /// activation-specific fields from the in-memory cache. This way, fields
+    /// written by other writers (NetworkTracker → totalBytesDownloaded,
+    /// MemorySampler → residentMemoryBytes, and any future fields) are
+    /// preserved automatically without explicit copy-back logic.
     private func _flushIfDirty() {
         guard isDirty else { return }
         isDirty = false
 
         let snapshot = cachedRecords
+        var snapshotIndex: [String: Int] = [:]
+        for (i, record) in snapshot.enumerated() {
+            snapshotIndex[record.bundleIdentifier] = i
+        }
+
         do {
             try store.updateRecords { diskRecords in
-                // Merge: overlay activation data from cache onto disk records,
-                // preserving data written by NetworkTracker and MemorySampler.
                 var diskRecordIndex: [String: Int] = [:]
                 for (i, record) in diskRecords.enumerated() {
                     diskRecordIndex[record.bundleIdentifier] = i
                 }
 
-                for var record in snapshot {
-                    if let idx = diskRecordIndex[record.bundleIdentifier] {
-                        // Preserve network and memory data from disk
-                        record.totalBytesDownloaded = diskRecords[idx].totalBytesDownloaded
-                        record.residentMemoryBytes = diskRecords[idx].residentMemoryBytes
-                        diskRecords[idx] = record
+                for cachedRecord in snapshot {
+                    if let idx = diskRecordIndex[cachedRecord.bundleIdentifier] {
+                        // Overlay only activation-related fields onto the disk
+                        // record, preserving network, memory, and any future
+                        // fields written by other components.
+                        diskRecords[idx].lastActivatedAt = cachedRecord.lastActivatedAt
+                        diskRecords[idx].activationCount = cachedRecord.activationCount
+                        diskRecords[idx].displayName = cachedRecord.displayName
+                        diskRecords[idx].totalActiveSeconds = cachedRecord.totalActiveSeconds
                     } else {
-                        diskRecords.append(record)
+                        diskRecords.append(cachedRecord)
                     }
                 }
             }

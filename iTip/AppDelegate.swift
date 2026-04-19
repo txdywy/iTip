@@ -29,8 +29,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         statusBarController = StatusBarController(menuPresenter: menuPresenter)
 
-        // Seed store with Spotlight data on cold start (empty store)
-        // Done async after UI is ready to avoid blocking app launch
+        // Seed store with Spotlight data on cold start (empty store).
+        // Done async after UI is ready to avoid blocking app launch.
+        //
+        // Queue ordering note: SpotlightSeeder calls store.updateRecords which
+        // syncs onto the store's serial queue. This is safe because the utility
+        // GCD thread does not hold any other iTip queue lock — the store queue
+        // is always the innermost lock.
         DispatchQueue.global(qos: .utility).async {
             let seeder = SpotlightSeeder(store: store)
             seeder.seedIfEmpty()
@@ -48,12 +53,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func launchApp(_ sender: NSMenuItem) {
         guard let bundleIdentifier = sender.representedObject as? String else { return }
 
-        appLauncher.activate(bundleIdentifier: bundleIdentifier) { [weak self] result in
-            switch result {
-            case .success:
-                break
-            case .failure(let error):
-                self?.showErrorAlert(for: error)
+        Task { @MainActor in
+            do {
+                try await appLauncher.activate(bundleIdentifier: bundleIdentifier)
+            } catch let error as AppLaunchError {
+                showErrorAlert(for: error)
+            } catch {
+                // Unexpected error type — should not happen
             }
         }
     }

@@ -1,6 +1,6 @@
 import Foundation
 
-struct UsageRecord: Codable, Equatable {
+struct UsageRecord: Codable, Equatable, Sendable {
     let bundleIdentifier: String
     var displayName: String
     var lastActivatedAt: Date
