@@ -4,12 +4,20 @@ import os.log
 final class UsageStore: UsageStoreProtocol {
 
     private let storageURL: URL
-    private let queue = DispatchQueue(label: "com.example.iTip.usageStore")
+    private let queue = DispatchQueue(label: "\(Bundle.main.bundleIdentifier ?? "iTip").usageStore")
     private var cachedRecords: [UsageRecord]?
-    private static let logger = OSLog(subsystem: "com.example.iTip", category: "UsageStore")
 
     init(storageURL: URL) {
         self.storageURL = storageURL
+    }
+
+    private func recoverFromCorruption() {
+        let backupURL = storageURL.appendingPathExtension("corrupt")
+        // Remove any previous corrupt backup
+        try? FileManager.default.removeItem(at: backupURL)
+        // Rename the current file as backup
+        try? FileManager.default.moveItem(at: storageURL, to: backupURL)
+        os_log(AppLog.usageStore, "UsageStore: recovered from corrupt data file, backup saved to %{public}@", type: .fault, backupURL.path)
     }
 
     /// Convenience initializer using the default storage path:
@@ -41,10 +49,10 @@ final class UsageStore: UsageStoreProtocol {
                 cachedRecords = records
                 return records
             } catch {
-                os_log("Failed to decode usage records: %{public}@", log: UsageStore.logger, type: .error, error.localizedDescription)
-                // Don't cache an empty result — the file is still on disk and
-                // may be recoverable. Throwing lets callers decide how to handle it.
-                throw error
+                os_log(AppLog.usageStore, "UsageStore: failed to decode records, recovering: %{public}@", type: .error, error.localizedDescription)
+                recoverFromCorruption()
+                cachedRecords = []
+                return []
             }
         }
     }
@@ -80,12 +88,9 @@ final class UsageStore: UsageStoreProtocol {
                         let decoder = JSONDecoder()
                         records = try decoder.decode([UsageRecord].self, from: data)
                     } catch {
-                        os_log("Failed to decode usage records in updateRecords: %{public}@", log: UsageStore.logger, type: .error, error.localizedDescription)
-                        // Propagate error — callers (ActivationMonitor, NetworkTracker)
-                        // have catch blocks that handle it gracefully.
-                        // Using an empty array here would cause the modify closure
-                        // to save partial data, permanently overwriting the file.
-                        throw error
+                        os_log(AppLog.usageStore, "UsageStore: failed to decode records in updateRecords, recovering: %{public}@", type: .error, error.localizedDescription)
+                        recoverFromCorruption()
+                        records = []
                     }
                 } else {
                     records = []

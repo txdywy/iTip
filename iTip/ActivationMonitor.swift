@@ -7,6 +7,9 @@ final class ActivationMonitor {
     private let dateProvider: () -> Date
     private let selfBundleIdentifier: String
 
+    /// Serial queue protecting all mutable state from data races.
+    private let syncQueue = DispatchQueue(label: "\(Bundle.main.bundleIdentifier ?? "iTip").activationMonitor")
+
     private var observer: NSObjectProtocol?
 
     /// In-memory cache of records to avoid disk I/O on every activation.
@@ -15,8 +18,8 @@ final class ActivationMonitor {
     private var indexByBundleID: [String: Int] = [:]
     /// Whether the cache has been populated from the store.
     private var cacheInitialized = false
-    /// Timer to debounce disk writes.
-    private var saveTimer: Timer?
+    /// Periodic flush while dirty (`DispatchSourceTimer` on `syncQueue`; avoids `Timer` + run loop on a GCD worker thread).
+    private var saveTimer: DispatchSourceTimer?
     /// Whether the cache has unsaved changes.
     private var isDirty = false
 
@@ -38,32 +41,46 @@ final class ActivationMonitor {
     }
 
     func startMonitoring() {
-        populateCache()
+        syncQueue.sync {
+            saveTimer?.cancel()
+            saveTimer = nil
+            if let existing = observer {
+                notificationCenter.removeObserver(existing)
+                observer = nil
+            }
 
-        observer = notificationCenter.addObserver(
-            forName: NSWorkspace.didActivateApplicationNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            self?.handleActivation(notification)
-        }
-        isMonitoring = (observer != nil)
+            populateCache()
 
-        // Periodic save every 5 seconds if dirty
-        saveTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
-            self?.flushIfDirty()
+            observer = notificationCenter.addObserver(
+                forName: NSWorkspace.didActivateApplicationNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+                self?.handleActivation(notification)
+            }
+            isMonitoring = (observer != nil)
+
+            let t = DispatchSource.makeTimerSource(queue: syncQueue)
+            t.schedule(deadline: .now() + 5.0, repeating: 5.0)
+            t.setEventHandler { [weak self] in
+                self?._flushIfDirty()
+            }
+            t.resume()
+            saveTimer = t
         }
     }
 
     func stopMonitoring() {
-        if let observer = observer {
-            notificationCenter.removeObserver(observer)
-            self.observer = nil
+        syncQueue.sync {
+            if let observer = observer {
+                notificationCenter.removeObserver(observer)
+                self.observer = nil
+            }
+            saveTimer?.cancel()
+            saveTimer = nil
+            _flushIfDirty()
+            isMonitoring = false
         }
-        saveTimer?.invalidate()
-        saveTimer = nil
-        flushIfDirty()
-        isMonitoring = false
     }
 
     // MARK: - Cache Management
@@ -71,7 +88,9 @@ final class ActivationMonitor {
     /// Persists any unsaved in-memory changes to the store.
     /// Useful for testing or when immediate persistence is needed.
     func flush() {
-        flushIfDirty()
+        syncQueue.sync {
+            _flushIfDirty()
+        }
     }
 
     private func populateCache() {
@@ -86,43 +105,45 @@ final class ActivationMonitor {
     }
 
     func recordActivation(bundleIdentifier: String, displayName: String) {
-        guard bundleIdentifier != selfBundleIdentifier else { return }
-        guard !bundleIdentifier.isEmpty else { return }
+        syncQueue.sync {
+            guard bundleIdentifier != selfBundleIdentifier else { return }
+            guard !bundleIdentifier.isEmpty else { return }
 
-        ensureCacheInitialized()
+            ensureCacheInitialized()
 
-        let now = dateProvider()
+            let now = dateProvider()
 
-        // Accumulate foreground duration for the previously active app
-        if let prevID = currentForegroundBundleID,
-           let since = foregroundSince,
-           prevID != selfBundleIdentifier,
-           let idx = indexByBundleID[prevID] {
-            let duration = now.timeIntervalSince(since)
-            if duration > 0 {
-                cachedRecords[idx].totalActiveSeconds += duration
+            // Accumulate foreground duration for the previously active app
+            if let prevID = currentForegroundBundleID,
+               let since = foregroundSince,
+               prevID != selfBundleIdentifier,
+               let idx = indexByBundleID[prevID] {
+                let duration = now.timeIntervalSince(since)
+                if duration > 0 {
+                    cachedRecords[idx].totalActiveSeconds += duration
+                }
             }
+
+            // Update foreground tracking
+            currentForegroundBundleID = bundleIdentifier
+            foregroundSince = now
+
+            if let idx = indexByBundleID[bundleIdentifier] {
+                cachedRecords[idx].lastActivatedAt = now
+                cachedRecords[idx].activationCount += 1
+                cachedRecords[idx].displayName = displayName
+            } else {
+                indexByBundleID[bundleIdentifier] = cachedRecords.count
+                cachedRecords.append(UsageRecord(
+                    bundleIdentifier: bundleIdentifier,
+                    displayName: displayName,
+                    lastActivatedAt: now,
+                    activationCount: 1
+                ))
+            }
+
+            isDirty = true
         }
-
-        // Update foreground tracking
-        currentForegroundBundleID = bundleIdentifier
-        foregroundSince = now
-
-        if let idx = indexByBundleID[bundleIdentifier] {
-            cachedRecords[idx].lastActivatedAt = now
-            cachedRecords[idx].activationCount += 1
-            cachedRecords[idx].displayName = displayName
-        } else {
-            indexByBundleID[bundleIdentifier] = cachedRecords.count
-            cachedRecords.append(UsageRecord(
-                bundleIdentifier: bundleIdentifier,
-                displayName: displayName,
-                lastActivatedAt: now,
-                activationCount: 1
-            ))
-        }
-
-        isDirty = true
     }
 
     // MARK: - Private
@@ -134,7 +155,8 @@ final class ActivationMonitor {
         }
     }
 
-    private func flushIfDirty() {
+    /// Internal flush implementation. Must be called while holding `syncQueue`.
+    private func _flushIfDirty() {
         guard isDirty else { return }
         isDirty = false
 
@@ -143,20 +165,16 @@ final class ActivationMonitor {
             try store.updateRecords { diskRecords in
                 // Merge: overlay activation data from cache onto disk records,
                 // preserving data written by NetworkTracker and MemorySampler.
-                let diskIndex = Dictionary(diskRecords.map { ($0.bundleIdentifier, $0) }, uniquingKeysWith: { first, _ in first })
-
-                // Build a lookup for O(1) index access in diskRecords
                 var diskRecordIndex: [String: Int] = [:]
                 for (i, record) in diskRecords.enumerated() {
                     diskRecordIndex[record.bundleIdentifier] = i
                 }
 
                 for var record in snapshot {
-                    if let diskRecord = diskIndex[record.bundleIdentifier] {
-                        record.totalBytesDownloaded = diskRecord.totalBytesDownloaded
-                        record.residentMemoryBytes = diskRecord.residentMemoryBytes
-                    }
                     if let idx = diskRecordIndex[record.bundleIdentifier] {
+                        // Preserve network and memory data from disk
+                        record.totalBytesDownloaded = diskRecords[idx].totalBytesDownloaded
+                        record.residentMemoryBytes = diskRecords[idx].residentMemoryBytes
                         diskRecords[idx] = record
                     } else {
                         diskRecords.append(record)
