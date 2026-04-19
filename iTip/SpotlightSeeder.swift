@@ -1,4 +1,5 @@
 import Foundation
+import os.log
 
 /// Seeds the UsageStore with recently-used application data from Spotlight metadata
 /// on cold start (when the store is empty). Uses kMDItemLastUsedDate and kMDItemUseCount
@@ -23,7 +24,7 @@ struct SpotlightSeeder {
                 existing.append(contentsOf: records)
             }
         } catch {
-            // Gracefully handle errors without crashing
+            os_log("SpotlightSeeder: seedIfEmpty failed: %{public}@", log: AppLog.spotlightSeeder, type: .error, error.localizedDescription)
         }
     }
 

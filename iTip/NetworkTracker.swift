@@ -8,7 +8,7 @@ final class NetworkTracker {
 
     private let store: UsageStoreProtocol
     private var timer: DispatchSourceTimer?
-    private let queue = DispatchQueue(label: "com.example.iTip.networkTracker", qos: .utility)
+    private let queue = DispatchQueue(label: "\(Bundle.main.bundleIdentifier ?? "iTip").networkTracker", qos: .utility)
 
     private static let maxAccumulatedEntries = 500
 
@@ -21,6 +21,7 @@ final class NetworkTracker {
 
     /// Start polling nettop every `interval` seconds.
     func start(interval: TimeInterval = 10.0) {
+        timer?.cancel()
         let t = DispatchSource.makeTimerSource(queue: queue)
         t.schedule(deadline: .now() + interval, repeating: interval)
         t.setEventHandler { [weak self] in
@@ -61,21 +62,26 @@ final class NetworkTracker {
 
         do {
             try store.updateRecords { records in
+                var index: [String: Int] = [:]
+                index.reserveCapacity(records.count)
+                for (i, r) in records.enumerated() {
+                    index[r.bundleIdentifier] = i
+                }
                 for (bundleID, bytes) in snapshot {
-                    if let idx = records.firstIndex(where: { $0.bundleIdentifier == bundleID }) {
+                    if let idx = index[bundleID] {
                         records[idx].totalBytesDownloaded += bytes
                     }
                     // Only update existing records — don't create new ones just for network data
                 }
             }
         } catch {
-            os_log("NetworkTracker: flush failed: %{public}@", type: .error, error.localizedDescription)
+            os_log("NetworkTracker: flush failed: %{public}@", log: AppLog.networkTracker, type: .error, error.localizedDescription)
             if accumulatedBytes.count < Self.maxAccumulatedEntries {
                 for (k, v) in snapshot {
                     accumulatedBytes[k, default: 0] += v
                 }
             } else {
-                os_log("NetworkTracker: accumulated entries exceeded cap (%d), dropping data", type: .fault, Self.maxAccumulatedEntries)
+                os_log("NetworkTracker: accumulated entries exceeded cap (%d), dropping data", log: AppLog.networkTracker, type: .fault, Self.maxAccumulatedEntries)
             }
         }
     }
